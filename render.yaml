@@ -11,14 +11,14 @@ services:
         fromDatabase:
           name: ai-media-studio-db
           property: connectionString
-      - key: AUTH_SECRET
+      - key: JWT_SECRET
         generateValue: true
       - key: IMAGE_PROVIDER_API_KEY
         sync: false
       - key: IMAGE_PROVIDER_URL
         value: https://api.openai.com/v1/images/generations
       - key: IMAGE_MODEL
-        value: gpt-image-2
+        sync: false
       - key: VIDEO_PROVIDER_API_KEY
         sync: false
       - key: VIDEO_MODEL_VERSION
