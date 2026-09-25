@@ -23,7 +23,7 @@ export async function verifyPassword(password: string, hash: string) {
 }
 
 export function signToken(user: AuthUser) {
-  return jwt.sign({ sub: user.id, email: user.email }, getSecret(), {
+  return jwt.sign({ sub: String(user.id), email: user.email }, getSecret(), {
     expiresIn: "7d",
   });
 }
@@ -48,8 +48,11 @@ export function sessionCookie(token: string) {
   return {
     name: "session",
     value: token,
-    maxAge: 60 * 60 * 24 * 7,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
   };
 }
 
