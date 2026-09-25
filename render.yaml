@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: ai-media-studio
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-media-studio-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: IMAGE_PROVIDER_API_KEY
+        sync: false
+      - key: IMAGE_PROVIDER_URL
+        value: https://api.openai.com/v1/images/generations
+      - key: IMAGE_MODEL
+        value: gpt-image-2
+      - key: VIDEO_PROVIDER_API_KEY
+        sync: false
+      - key: VIDEO_MODEL_VERSION
+        sync: false
+      - key: VIDEO_ASPECT_RATIO
+        value: 16:9
+      - key: VIDEO_SECONDS
+        value: "5"
+
+databases:
+  - name: ai-media-studio-db
+    databaseName: ai_media_studio
+    plan: free
