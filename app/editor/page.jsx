@@ -6,6 +6,7 @@ export default function Editor() {
   const video = useRef(null);
   const canvas = useRef(null);
   const [src, setSrc] = useState("");
+  const [mediaKind, setMediaKind] = useState("video");
   const [start, setStart] = useState(0);
   const [end, setEnd] = useState(0);
   const [caption, setCaption] = useState("");
@@ -24,6 +25,7 @@ export default function Editor() {
 
     if (src) URL.revokeObjectURL(src);
     setSrc(URL.createObjectURL(file));
+    setMediaKind(file.type.startsWith("image/") ? "image" : "video");
     setStart(0);
     setEnd(0);
     setPlaying(false);
@@ -76,18 +78,20 @@ export default function Editor() {
   }
 
   function snapshot() {
-    if (!video.current || !canvas.current) return;
+    if (!canvas.current) return;
 
     const canvasElement = canvas.current;
-    canvasElement.width = video.current.videoWidth || 1280;
-    canvasElement.height = video.current.videoHeight || 720;
+    const media = video.current || document.querySelector(".stage img");
+    if (!media) return;
+    canvasElement.width = media.videoWidth || media.naturalWidth || 1280;
+    canvasElement.height = media.videoHeight || media.naturalHeight || 720;
 
     const context = canvasElement.getContext("2d");
     if (!context) return;
 
     context.filter = videoFilter();
     context.drawImage(
-      video.current,
+      media,
       0,
       0,
       canvasElement.width,
@@ -139,14 +143,18 @@ export default function Editor() {
           {src ? (
             <>
               <div className="stage">
-                <video
-                  ref={video}
-                  src={src}
-                  onLoadedMetadata={ready}
-                  onTimeUpdate={handleTimeUpdate}
-                  style={{ filter: videoFilter() }}
-                  controls
-                />
+                {mediaKind === "image" ? (
+                  <img src={src} alt="Uploaded media" style={{ display: "block", width: "100%", maxHeight: "65vh", objectFit: "contain", filter: videoFilter() }} />
+                ) : (
+                  <video
+                    ref={video}
+                    src={src}
+                    onLoadedMetadata={ready}
+                    onTimeUpdate={handleTimeUpdate}
+                    style={{ filter: videoFilter() }}
+                    controls
+                  />
+                )}
               </div>
 
               <div className="controls">
