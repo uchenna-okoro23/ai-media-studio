@@ -1,12 +1,228 @@
 "use client";
-import {useEffect,useRef,useState} from "react";
-export default function Editor(){
- const video=useRef(null); const canvas=useRef(null); const [src,setSrc]=useState(""); const [start,setStart]=useState(0); const [end,setEnd]=useState(0); const [caption,setCaption]=useState(""); const [filter,setFilter]=useState("none"); const [playing,setPlaying]=useState(false);
- useEffect(()=>()=>src&&URL.revokeObjectURL(src),[src]);
- function load(e){const file=e.target.files?.[0];if(file){if(src)URL.revokeObjectURL(src);setSrc(URL.createObjectURL(file));}}
- function ready(){const d=video.current.duration;setEnd(d);video.current.currentTime=0;}
- function play(){if(!video.current)return;if(playing)video.current.pause();else video.current.play();setPlaying(!playing);}
- function seekStart(v){setStart(Number(v));if(video.current)video.current.currentTime=Number(v);}
- function seekEnd(v){setEnd(Number(v));}
- function snapshot(){if(!video.current||!canvas.current)return;const c=canvas.current;c.width=video.current.videoWidth||1280;c.height=video.current.videoHeight||720;const ctx=c.getContext("2d");ctx.filter=filter==="grayscale"?"grayscale(1)":filter==="contrast"?"contrast(1.25)":"none";ctx.drawImage(video.current,0,0,c.width,c.height);if(caption){ctx.filter="none";ctx.font="bold 42px sans-serif";ctx.textAlign="center";ctx.fillStyle="white";ctx.strokeStyle="black";ctx.lineWidth=6;ctx.strokeText(caption,c.width/2,c.height-60);ctx.fillText(caption,c.width/2,c.height-60);}const a=document.createElement("a");a.download="ai-media-editor-frame.png";a.href=c.toDataURL("image/png");a.click();}
- return <main className="editorShell"><header className="editorHeader"><div><label>AI EDITOR</label><h1>Build your edit</h1><span>Trim, preview, style and caption media directly in your browser.</span></div><a href="/">Back to Studio</a></header><section className="editorGrid"><div className="editorPanel"><input type="file" accept="video/*,image/*" onChange={load}/>{src?<><div className="stage"><video ref={video} src={src} onLoadedMetadata={ready} onTimeUpdate={()=>{if(video.current&&end&&video.current.currentTime>=end){video.current.pause();setPlaying(false);}}} style={{filter:filter==="grayscale"?"grayscale(1)":filter==="contrast"?"contrast(1.25)":"none"}} controls/></div><div className="controls"><button onClick={play}>{playing?"Pause":"Play"}</button><label>Start <input type="number" min="0" max={end} step="0.1" value={start} onChange={e=>seekStart(e.target.value)}/></label><label>End <input type="number" min={start} max={video.current?.duration||end||0} step="0.1" value={end} onChange={e=>seekEnd(e.target.value)}/></label></div></>:<div className="emptyEditor">Upload a video or image to start editing.</div>}</div><aside className="editorPanel"><label>EDIT</label><h2>Caption</h2><input value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Add a caption overlay"/><h2>Filter</h2><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="none">Original</option><option value="grayscale">Grayscale</option><option value="contrast">High contrast</option></select><h2>Export</h2><button className="primary" disabled={!src} onClick={snapshot}>Export current frame</button><p>Frame export is lossless PNG. Video trim/export can be extended with server-side FFmpeg storage in the next production phase.</p></aside></section><canvas ref={canvas} hidden/></main>
+
+import { useEffect, useRef, useState } from "react";
+
+export default function Editor() {
+  const video = useRef(null);
+  const canvas = useRef(null);
+  const [src, setSrc] = useState("");
+  const [start, setStart] = useState(0);
+  const [end, setEnd] = useState(0);
+  const [caption, setCaption] = useState("");
+  const [filter, setFilter] = useState("none");
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (src) URL.revokeObjectURL(src);
+    };
+  }, [src]);
+
+  function load(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (src) URL.revokeObjectURL(src);
+    setSrc(URL.createObjectURL(file));
+    setStart(0);
+    setEnd(0);
+    setPlaying(false);
+  }
+
+  function ready() {
+    if (!video.current) return;
+    const duration = video.current.duration || 0;
+    setEnd(duration);
+    video.current.currentTime = 0;
+  }
+
+  function play() {
+    if (!video.current) return;
+
+    if (playing) {
+      video.current.pause();
+      setPlaying(false);
+      return;
+    }
+
+    video.current.play();
+    setPlaying(true);
+  }
+
+  function seekStart(value) {
+    const next = Number(value);
+    setStart(next);
+    if (video.current) video.current.currentTime = next;
+  }
+
+  function seekEnd(value) {
+    setEnd(Number(value));
+  }
+
+  function handleTimeUpdate() {
+    if (!video.current || !end) return;
+
+    if (video.current.currentTime >= end) {
+      video.current.pause();
+      video.current.currentTime = end;
+      setPlaying(false);
+    }
+  }
+
+  function videoFilter() {
+    if (filter === "grayscale") return "grayscale(1)";
+    if (filter === "contrast") return "contrast(1.25)";
+    return "none";
+  }
+
+  function snapshot() {
+    if (!video.current || !canvas.current) return;
+
+    const canvasElement = canvas.current;
+    canvasElement.width = video.current.videoWidth || 1280;
+    canvasElement.height = video.current.videoHeight || 720;
+
+    const context = canvasElement.getContext("2d");
+    if (!context) return;
+
+    context.filter = videoFilter();
+    context.drawImage(
+      video.current,
+      0,
+      0,
+      canvasElement.width,
+      canvasElement.height
+    );
+
+    if (caption) {
+      context.filter = "none";
+      context.font = "bold 42px sans-serif";
+      context.textAlign = "center";
+      context.fillStyle = "white";
+      context.strokeStyle = "black";
+      context.lineWidth = 6;
+
+      const x = canvasElement.width / 2;
+      const y = canvasElement.height - 60;
+
+      context.strokeText(caption, x, y);
+      context.fillText(caption, x, y);
+    }
+
+    const link = document.createElement("a");
+    link.download = "ai-media-editor-frame.png";
+    link.href = canvasElement.toDataURL("image/png");
+    link.click();
+  }
+
+  return (
+    <main className="editorShell">
+      <header className="editorHeader">
+        <div>
+          <label>AI EDITOR</label>
+          <h1>Build your edit</h1>
+          <span>
+            Trim, preview, style and caption media directly in your browser.
+          </span>
+        </div>
+        <a href="/">Back to Studio</a>
+      </header>
+
+      <section className="editorGrid">
+        <div className="editorPanel">
+          <input
+            type="file"
+            accept="video/*,image/*"
+            onChange={load}
+          />
+
+          {src ? (
+            <>
+              <div className="stage">
+                <video
+                  ref={video}
+                  src={src}
+                  onLoadedMetadata={ready}
+                  onTimeUpdate={handleTimeUpdate}
+                  style={{ filter: videoFilter() }}
+                  controls
+                />
+              </div>
+
+              <div className="controls">
+                <button onClick={play}>
+                  {playing ? "Pause" : "Play"}
+                </button>
+
+                <label>
+                  Start
+                  <input
+                    type="number"
+                    min="0"
+                    max={end}
+                    step="0.1"
+                    value={start}
+                    onChange={(event) => seekStart(event.target.value)}
+                  />
+                </label>
+
+                <label>
+                  End
+                  <input
+                    type="number"
+                    min={start}
+                    max={video.current?.duration || end || 0}
+                    step="0.1"
+                    value={end}
+                    onChange={(event) => seekEnd(event.target.value)}
+                  />
+                </label>
+              </div>
+            </>
+          ) : (
+            <div className="emptyEditor">
+              Upload a video or image to start editing.
+            </div>
+          )}
+        </div>
+
+        <aside className="editorPanel">
+          <label>EDIT</label>
+
+          <h2>Caption</h2>
+          <input
+            value={caption}
+            onChange={(event) => setCaption(event.target.value)}
+            placeholder="Add a caption overlay"
+          />
+
+          <h2>Filter</h2>
+          <select
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          >
+            <option value="none">Original</option>
+            <option value="grayscale">Grayscale</option>
+            <option value="contrast">High contrast</option>
+          </select>
+
+          <h2>Export</h2>
+          <button
+            className="primary"
+            disabled={!src}
+            onClick={snapshot}
+          >
+            Export current frame
+          </button>
+
+          <p>
+            Frame export is lossless PNG. Video trim/export can be extended
+            with server-side FFmpeg storage in the next production phase.
+          </p>
+        </aside>
+      </section>
+
+      <canvas ref={canvas} hidden />
+    </main>
+  );
+}
