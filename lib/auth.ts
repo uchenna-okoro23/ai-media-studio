@@ -1,9 +1,11 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { cookies } from "next/headers";
 
 export type AuthUser = {
   id: string;
   email: string;
+  sub?: string;
 };
 
 function getSecret() {
@@ -21,7 +23,13 @@ export async function verifyPassword(password: string, hash: string) {
 }
 
 export function signToken(user: AuthUser) {
-  return jwt.sign(user, getSecret(), { expiresIn: "7d" });
+  return jwt.sign({ sub: user.id, email: user.email }, getSecret(), {
+    expiresIn: "7d",
+  });
+}
+
+export function signUser(user: AuthUser) {
+  return signToken(user);
 }
 
 export function verifyToken(token: string) {
@@ -34,4 +42,25 @@ export function createToken(user: AuthUser) {
 
 export function verifyAuthToken(token: string) {
   return verifyToken(token);
+}
+
+export function sessionCookie(token: string) {
+  return {
+    name: "session",
+    value: token,
+    maxAge: 60 * 60 * 24 * 7,
+    secure: process.env.NODE_ENV === "production",
+  };
+}
+
+export async function getSessionUser() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session")?.value;
+  if (!token) return null;
+
+  try {
+    return verifyToken(token);
+  } catch {
+    return null;
+  }
 }
