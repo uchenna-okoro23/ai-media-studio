@@ -1,0 +1,1 @@
+export async function GET(){return Response.json({status:"ok",service:"ai-media-studio",version:"0.1.0",timestamp:new Date().toISOString()})}
