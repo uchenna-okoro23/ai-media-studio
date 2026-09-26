@@ -8,7 +8,7 @@ export async function GET() {
   }
 
   const r = await db().query(
-    "select id,email,created_at from users where id=$1",
+    "select id,email,created_at,balance_kobo from users where id=$1",
     [user.sub]
   );
   if (!r.rows[0]) {
@@ -23,6 +23,7 @@ export async function GET() {
   return Response.json({
     user: r.rows[0],
     usage: {
+      balance: Number(r.rows[0].balance_kobo || 0) / 100,
       total: usage.rows[0].total,
       today: usage.rows[0].today,
       dailyLimit: 10,
