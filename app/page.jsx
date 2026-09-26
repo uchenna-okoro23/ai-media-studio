@@ -1,707 +1,101 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Sidebar from "./components/Sidebar";
 
-const tools = ["AI Image", "AI Video", "Scene Generator", "Storyboard"];
+const tools = [
+  ["AI Image","/image","Create realistic images from prompts."],
+  ["AI Video","/video","Generate short-form video."],
+  ["Scene Generator","/scenes","Build structured visual scenes."],
+  ["Storyboard","/storyboard","Plan shots and narrative beats."],
+];
 
 export default function Home() {
-  const [active, setActive] = useState("AI Image");
-  const [prompt, setPrompt] = useState("");
-  const [history, setHistory] = useState([]);
-  const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [showAuth, setShowAuth] = useState(false);
-  const [authMode, setAuthMode] = useState("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [user, setUser] = useState(null);
-  const [usage, setUsage] = useState({ today: 0, dailyLimit: 10 });
-  const [output, setOutput] = useState(null);
-  const [mobileNav, setMobileNav] = useState(false);
-  const [viewer, setViewer] = useState(null);
+  const [user,setUser]=useState(null);
+  const [usage,setUsage]=useState({today:0,dailyLimit:10});
+  const [history,setHistory]=useState([]);
+  const [mobileNav,setMobileNav]=useState(false);
+  const [showAuth,setShowAuth]=useState(false);
+  const [mode,setMode]=useState("login");
+  const [email,setEmail]=useState("");
+  const [password,setPassword]=useState("");
+  const [notice,setNotice]=useState("");
+  const [busy,setBusy]=useState(false);
 
-  useEffect(() => {
-    refreshAccount();
-  }, []);
+  useEffect(()=>{load();},[]);
 
-  async function fetchJson(url, options = {}, timeoutMs = 10000) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        cache: "no-store",
-        credentials: "same-origin",
-        ...options,
-        signal: controller.signal,
-      });
-
-      return {
-        ok: response.ok,
-        status: response.status,
-        data: await response.json().catch(() => ({})),
-      };
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  async function refreshAccount() {
-    try {
-      const me = (await fetchJson("/api/auth/me")).data;
-
-      setUser(me.user || null);
-
-      if (!me.user) {
-        return;
-      }
-
-      const [accountResult, historyResult] = await Promise.all([
-        fetchJson("/api/account"),
-        fetchJson("/api/generations"),
+  async function load(){
+    try{
+      const me=await fetch("/api/auth/me").then(r=>r.json());
+      setUser(me.user||null);
+      if(!me.user)return;
+      const [a,h]=await Promise.all([
+        fetch("/api/account").then(r=>r.json()),
+        fetch("/api/generations").then(r=>r.json())
       ]);
-
-      const account = accountResult.data;
-      const historyData = historyResult.data;
-
-      if (account.usage) {
-        setUsage(account.usage);
-      }
-
-      if (historyData.generations) {
-        setHistory(historyData.generations);
-
-        const latest = historyData.generations.find(
-          (item) =>
-            item.output_url &&
-            item.status === "completed"
-        );
-
-        if (latest) {
-          setOutput({
-            id: latest.id,
-            type: latest.type,
-            url: "/api/generations/" + latest.id + "/media",
-            prompt: latest.prompt,
-          });
-        }
-      }
-    } catch {
-      setUser(null);
-    }
+      if(a.usage)setUsage(a.usage);
+      if(h.generations)setHistory(h.generations);
+    }catch{}
   }
 
-  function openLogin() {
-    setAuthMode("login");
-    setNotice("");
-    setShowAuth(true);
+  async function auth(e){
+    e.preventDefault();
+    setBusy(true);setNotice("");
+    try{
+      const r=await fetch("/api/auth/"+mode,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim().toLowerCase(),password})});
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok){setNotice(data.error||"Account request failed.");return;}
+      setShowAuth(false);setEmail("");setPassword("");await load();
+    }catch{setNotice("Account service did not respond.");}
+    finally{setBusy(false);}
   }
 
-  function openRegister() {
-    setAuthMode("register");
-    setNotice("");
-    setShowAuth(true);
-  }
+  return <main className="shell">
+    <button className="mobileMenu" onClick={()=>setMobileNav(true)}>☰</button>
+    {mobileNav&&<div className="navBackdrop" onClick={()=>setMobileNav(false)}/>}
+    <Sidebar mobileOpen={mobileNav} onNavigate={()=>setMobileNav(false)}/>
+    <section className="content">
+      <header>
+        <div><label>HOME · DASHBOARD</label><h1>Welcome to AI Media Studio.</h1><span>Choose a creative tool and build your next piece of media.</span></div>
+        {user?<div className="accountChip">{user.email}</div>:<div className="authActions"><button className="upgrade" onClick={()=>{setMode("login");setShowAuth(true)}}>Sign in</button><button className="upgrade" onClick={()=>{setMode("register");setShowAuth(true)}}>Create account</button></div>}
+      </header>
 
-  function closeAuth() {
-    if (!busy) {
-      setShowAuth(false);
-    }
-  }
+      <div className="cards">{tools.map(([name,href,desc])=><Link className="card" href={href} key={href}><strong>{name}</strong><small>{desc}</small></Link>)}<Link className="card" href="/editor"><strong>AI Editor</strong><small>Trim, preview and refine media in your browser.</small></Link></div>
 
-  function signInWithGoogle() {
-    window.location.href = "/api/auth/google";
-  }
-
-  async function generate() {
-    if (!user) {
-      openLogin();
-      setNotice("Sign in to use your free generations.");
-      return;
-    }
-
-    if (!prompt.trim()) {
-      setNotice("Enter a prompt first.");
-      return;
-    }
-
-    if (usage.today >= usage.dailyLimit) {
-      setNotice("Your daily free generation limit has been reached.");
-      return;
-    }
-
-    setBusy(true);
-    setNotice("");
-    setOutput(null);
-
-    try {
-      const result = await fetchJson(
-        "/api/generate",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            type: active,
-            prompt,
-          }),
-        },
-        90000
-      );
-
-      const data = result.data;
-
-      if (data.usage) {
-        setUsage((current) => ({
-          ...current,
-          today: data.usage.used,
-        }));
-      }
-
-      if (result.ok && data.url) {
-        setOutput({
-          id: data.id,
-          type: active,
-          url:
-            active === "AI Image"
-              ? "/api/generations/" + data.id + "/media"
-              : data.url,
-          prompt,
-        });
-
-        setNotice("Generation completed.");
-      } else {
-        setNotice(
-          result.ok
-            ? "Generation completed, but no output was returned."
-            : data.error || "Generation failed."
-        );
-      }
-
-      if (result.ok) {
-        await refreshAccount();
-      }
-    } catch {
-      setNotice("Could not reach the generation service.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function auth(event) {
-    event.preventDefault();
-
-    if (busy) {
-      return;
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail || !password) {
-      setNotice("Enter your email and password.");
-      return;
-    }
-
-    if (authMode === "register" && password.length < 8) {
-      setNotice("Password must be at least 8 characters.");
-      return;
-    }
-
-    setBusy(true);
-    setNotice("");
-
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-
-      let response;
-      let data;
-
-      try {
-        response = await fetch("/api/auth/" + authMode, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "same-origin",
-          body: JSON.stringify({
-            email: cleanEmail,
-            password,
-          }),
-          signal: controller.signal,
-        });
-
-        data = await response.json().catch(() => ({}));
-      } finally {
-        clearTimeout(timer);
-      }
-
-      if (!response.ok) {
-        setNotice(data.error || "Account request failed.");
-        return;
-      }
-
-      setShowAuth(false);
-      setEmail("");
-      setPassword("");
-      setNotice("Account ready.");
-
-      await refreshAccount();
-    } catch {
-      setNotice(
-        "The account service did not respond. Please try again."
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function openViewer(item) {
-    if (!item?.url) {
-      return;
-    }
-
-    setViewer({
-      url: item.url,
-      prompt: item.prompt || "",
-    });
-  }
-
-  return (
-    <main className="shell">
-      <button
-        type="button"
-        className="mobileMenu"
-        onClick={() => setMobileNav(true)}
-        aria-label="Open navigation"
-      >
-        ☰
-      </button>
-
-      {mobileNav && (
-        <div
-          className="navBackdrop"
-          onClick={() => setMobileNav(false)}
-        />
-      )}
-
-      <Sidebar
-        mobileOpen={mobileNav}
-        onNavigate={() => setMobileNav(false)}
-      />
-
-      <section className="content">
-        <header>
-          <div>
-            <label>CREATOR WORKSPACE</label>
-            <h1>Turn ideas into media.</h1>
-            <span>
-              Generate, organize and refine creative
-              concepts from one workspace.
-            </span>
-          </div>
-
-          {user ? (
-            <div className="accountChip">
-              {user.email}
-            </div>
-          ) : (
-            <div className="authActions">
-              <button
-                type="button"
-                className="upgrade"
-                onClick={openLogin}
-              >
-                Sign in
-              </button>
-
-              <button
-                type="button"
-                className="upgrade"
-                onClick={openRegister}
-              >
-                Create account
-              </button>
-            </div>
-          )}
-        </header>
-
-        <div className="cards">
-          {tools.map((tool) => {
-            const href =
-              tool === "AI Image"
-                ? "/image"
-                : tool === "AI Video"
-                ? "/video"
-                : tool === "Scene Generator"
-                ? "/scenes"
-                : "/storyboard";
-
-            return (
-              <Link
-                href={href}
-                className="card"
-                key={tool}
-              >
-                <strong>{tool}</strong>
-                <small>
-                  {tool === "AI Image"
-                    ? "Create polished visuals from a prompt."
-                    : tool === "AI Video"
-                    ? "Generate short-form video with the configured video provider."
-                    : tool === "Scene Generator"
-                    ? "Turn a story idea into structured visual scenes."
-                    : "Plan scenes, shots, and narrative beats."}
-                </small>
-              </Link>
-            );
-          })}
+      <div className="workspace">
+        <div className="panel">
+          <label>DAILY USAGE</label><h2>Your generation allowance</h2>
+          <strong>{usage.today} / {usage.dailyLimit} generations used today</strong>
+          <div className="usage" style={{marginTop:14}}><div><i style={{width:Math.min(100,(usage.today/usage.dailyLimit)*100)+"%"}}/></div><small>Limit resets daily.</small></div>
         </div>
-
-        <div className="workspace">
-          <div className="panel">
-            <label>{active}</label>
-
-            <h2>
-              Describe what you want to create
-            </h2>
-
-            <textarea
-              maxLength={2000}
-              value={prompt}
-              onChange={(event) =>
-                setPrompt(event.target.value)
-              }
-              placeholder="Describe your idea, style, mood, camera, subject and details..."
-            />
-
-            <div className="foot">
-              <small>
-                {prompt.length}/2000
-              </small>
-
-              <button
-                type="button"
-                onClick={generate}
-                disabled={busy}
-              >
-                {busy
-                  ? "Generating..."
-                  : "✦ Generate"}
-              </button>
-            </div>
-
-            {notice && (
-              <div className="notice">
-                {notice}
-              </div>
-            )}
-          </div>
-
-          <div className="panel">
-            <label>OUTPUT</label>
-
-            <h2>Preview</h2>
-
-            <div className="preview">
-              {output?.url ? (
-                output.type === "AI Image" ? (
-                  <div className="resultWrap">
-                    <img
-                      className="generatedPreview historyImage"
-                      src={output.url}
-                      alt={
-                        output.prompt ||
-                        "Generated image"
-                      }
-                      onClick={() =>
-                        openViewer(output)
-                      }
-                    />
-
-                    <div className="resultActions">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          openViewer(output)
-                        }
-                      >
-                        Open
-                      </button>
-
-                      <a
-                        href={output.url}
-                        download="ai-media-studio-image.webp"
-                      >
-                        Download
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <a
-                    className="outputLink"
-                    href={output.url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open generated {output.type}
-                  </a>
-                )
-              ) : (
-                <>
-                  <b>✦</b>
-
-                  <strong>
-                    {usage.today >=
-                    usage.dailyLimit
-                      ? "Daily free limit reached"
-                      : "Your creation will appear here"}
-                  </strong>
-
-                  <small>
-                    Live provider output is returned
-                    by the server without exposing
-                    provider keys.
-                  </small>
-                </>
-              )}
-            </div>
-          </div>
+        <div className="panel">
+          <label>QUICK START</label><h2>Start creating</h2>
+          <p>Open AI Image for the working image-generation interface, or choose another tool from the sidebar.</p>
+          <Link className="outputLink" href="/image">Open AI Image</Link>
         </div>
+      </div>
 
-        <div className="panel history">
-          <label>RECENT</label>
+      <div className="panel history">
+        <label>RECENT</label><h2>Recent creations</h2>
+        {history.length===0?<p>No creations yet. Choose a tool above to get started.</p>:history.slice(0,8).map(item=><div className="item" key={item.id}><b>{item.prompt}</b><small>{item.type} · {new Date(item.created_at).toLocaleString()} · {item.status}</small></div>)}
+      </div>
 
-          <h2>Generation history</h2>
+      <footer>AI Media Studio · <a href="/api/health">API health</a></footer>
+    </section>
 
-          {history.length === 0 ? (
-            <p>
-              No generations yet. Sign in and
-              generate to create persistent history.
-            </p>
-          ) : (
-            history.slice(0, 8).map((item) => (
-              <div
-                className="item"
-                key={item.id}
-              >
-                <b>{item.prompt}</b>
-
-                <small>
-                  {item.type} ·{" "}
-                  {new Date(
-                    item.created_at
-                  ).toLocaleString()}{" "}
-                  · {item.status}
-                </small>
-
-                {item.output_url &&
-                  item.status === "completed" &&
-                  item.type === "AI Image" && (
-                    <img
-                      className="historyImage"
-                      src={
-                        "/api/generations/" +
-                        item.id +
-                        "/media"
-                      }
-                      alt={item.prompt}
-                      onClick={() =>
-                        openViewer({
-                          url:
-                            "/api/generations/" +
-                            item.id +
-                            "/media",
-                          prompt: item.prompt,
-                        })
-                      }
-                    />
-                  )}
-              </div>
-            ))
-          )}
-        </div>
-
-        <footer>
-          AI Media Studio ·{" "}
-          <a href="/api/health">
-            API health
-          </a>
-        </footer>
-      </section>
-
-      {viewer && (
-        <div
-          className="viewer"
-          onClick={() => setViewer(null)}
-        >
-          <div
-            className="viewerInner"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
-          >
-            <button
-              type="button"
-              className="viewerClose"
-              onClick={() => setViewer(null)}
-              aria-label="Close image viewer"
-            >
-              ×
-            </button>
-
-            <img
-              src={viewer.url}
-              alt={
-                viewer.prompt ||
-                "Generated image"
-              }
-            />
-
-            <p>{viewer.prompt}</p>
-
-            <a
-              href={viewer.url}
-              download="ai-media-studio-image.webp"
-            >
-              Download image
-            </a>
-          </div>
-        </div>
-      )}
-
-      {showAuth && (
-        <div
-          className="modal"
-          onMouseDown={(event) => {
-            if (
-              event.target === event.currentTarget
-            ) {
-              closeAuth();
-            }
-          }}
-        >
-          <form
-            className="auth"
-            onSubmit={auth}
-          >
-            <button
-              type="button"
-              className="viewerClose"
-              onClick={closeAuth}
-              aria-label="Close"
-            >
-              ×
-            </button>
-
-            <label>
-              {authMode === "login"
-                ? "WELCOME BACK"
-                : "CREATE ACCOUNT"}
-            </label>
-
-            <h2>
-              {authMode === "login"
-                ? "Sign in to AI Media Studio"
-                : "Create your account"}
-            </h2>
-
-            <p>
-              {authMode === "login"
-                ? "Access your generations, history and workspace."
-                : "Start creating with your free daily generations."}
-            </p>
-
-            <input
-              type="email"
-              value={email}
-              onChange={(event) =>
-                setEmail(event.target.value)
-              }
-              placeholder="Email address"
-              autoComplete="email"
-              required
-            />
-
-            <input
-              type="password"
-              value={password}
-              onChange={(event) =>
-                setPassword(event.target.value)
-              }
-              placeholder="Password"
-              autoComplete={
-                authMode === "login"
-                  ? "current-password"
-                  : "new-password"
-              }
-              minLength={
-                authMode === "register"
-                  ? 8
-                  : undefined
-              }
-              required
-            />
-
-            <button
-              type="submit"
-              disabled={busy}
-            >
-              {busy
-                ? "Please wait..."
-                : authMode === "login"
-                ? "Sign in"
-                : "Create account"}
-            </button>
-
-            <div className="authDivider">
-              <span>OR</span>
-            </div>
-
-            <button
-              type="button"
-              className="googleButton"
-              onClick={signInWithGoogle}
-              disabled={busy}
-            >
-              Continue with Google
-            </button>
-
-            <div className="authSwitch">
-              {authMode === "login" ? (
-                <>
-                  <span>
-                    Don't have an account?
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={openRegister}
-                  >
-                    Create account
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span>
-                    Already have an account?
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={openLogin}
-                  >
-                    Sign in
-                  </button>
-                </>
-              )}
-            </div>
-          </form>
-        </div>
-      )}
-    </main>
-  );
-          }
+    {showAuth&&<div className="modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setShowAuth(false)}}>
+      <form className="auth" onSubmit={auth}>
+        <button type="button" className="viewerClose" onClick={()=>!busy&&setShowAuth(false)}>×</button>
+        <label>{mode==="login"?"WELCOME BACK":"CREATE ACCOUNT"}</label>
+        <h2>{mode==="login"?"Sign in to AI Media Studio":"Create your account"}</h2>
+        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email address" required/>
+        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" minLength={mode==="register"?8:undefined} required/>
+        {notice&&<div className="notice">{notice}</div>}
+        <button className="authBtn" disabled={busy}>{busy?"Please wait...":mode==="login"?"Sign in":"Create account"}</button>
+        <button type="button" className="googleButton" onClick={()=>{window.location.href="/api/auth/google"}} disabled={busy}>Continue with Google</button>
+        <div className="authSwitch">{mode==="login"?<><span>Don't have an account?</span><button type="button" onClick={()=>{setMode("register");setNotice("")}}>Create account</button></>:<><span>Already have an account?</span><button type="button" onClick={()=>{setMode("login");setNotice("")}}>Sign in</button></>}</div>
+      </form>
+    </div>}
+  </main>;
+}
