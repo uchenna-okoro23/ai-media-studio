@@ -27,6 +27,7 @@ export default function Home() {
   async function fetchJson(url, options = {}, timeoutMs = 10000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const response = await fetch(url, {
         cache: "no-store",
@@ -34,7 +35,12 @@ export default function Home() {
         ...options,
         signal: controller.signal,
       });
-      return { ok: response.ok, status: response.status, data: await response.json().catch(() => ({})) };
+
+      return {
+        ok: response.ok,
+        status: response.status,
+        data: await response.json().catch(() => ({})),
+      };
     } finally {
       clearTimeout(timer);
     }
@@ -43,20 +49,42 @@ export default function Home() {
   async function refreshAccount() {
     try {
       const me = (await fetchJson("/api/auth/me")).data;
-      setUser(me.user || null);
-      if (!me.user) return;
 
-      const [aResult, hResult] = await Promise.all([
+      setUser(me.user || null);
+
+      if (!me.user) {
+        return;
+      }
+
+      const [accountResult, historyResult] = await Promise.all([
         fetchJson("/api/account"),
         fetchJson("/api/generations"),
       ]);
-      const a = aResult.data;
-      const h = hResult.data;
-      if (a.usage) setUsage(a.usage);
-      if (h.generations) {
-        setHistory(h.generations);
-        const latest = h.generations.find((x) => x.output_url && x.status === "completed");
-        if (latest) setOutput({ id: latest.id, type: latest.type, url: "/api/generations/" + latest.id + "/media", prompt: latest.prompt });
+
+      const account = accountResult.data;
+      const historyData = historyResult.data;
+
+      if (account.usage) {
+        setUsage(account.usage);
+      }
+
+      if (historyData.generations) {
+        setHistory(historyData.generations);
+
+        const latest = historyData.generations.find(
+          (item) =>
+            item.output_url &&
+            item.status === "completed"
+        );
+
+        if (latest) {
+          setOutput({
+            id: latest.id,
+            type: latest.type,
+            url: "/api/generations/" + latest.id + "/media",
+            prompt: latest.prompt,
+          });
+        }
       }
     } catch {
       setUser(null);
@@ -76,7 +104,13 @@ export default function Home() {
   }
 
   function closeAuth() {
-    if (!busy) setShowAuth(false);
+    if (!busy) {
+      setShowAuth(false);
+    }
+  }
+
+  function signInWithGoogle() {
+    window.location.href = "/api/auth/google";
   }
 
   async function generate() {
@@ -85,29 +119,69 @@ export default function Home() {
       setNotice("Sign in to use your free generations.");
       return;
     }
+
     if (!prompt.trim()) {
       setNotice("Enter a prompt first.");
+      return;
+    }
+
+    if (usage.today >= usage.dailyLimit) {
+      setNotice("Your daily free generation limit has been reached.");
       return;
     }
 
     setBusy(true);
     setNotice("");
     setOutput(null);
+
     try {
-      const result = await fetchJson("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: active, prompt }),
-      }, 90000);
+      const result = await fetchJson(
+        "/api/generate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: active,
+            prompt,
+          }),
+        },
+        90000
+      );
+
       const data = result.data;
-      if (data.usage) setUsage((u) => ({ ...u, today: data.usage.used }));
+
+      if (data.usage) {
+        setUsage((current) => ({
+          ...current,
+          today: data.usage.used,
+        }));
+      }
+
       if (result.ok && data.url) {
-        setOutput({ id: data.id, type: active, url: active === "AI Image" ? "/api/generations/" + data.id + "/media" : data.url, prompt });
+        setOutput({
+          id: data.id,
+          type: active,
+          url:
+            active === "AI Image"
+              ? "/api/generations/" + data.id + "/media"
+              : data.url,
+          prompt,
+        });
+
         setNotice("Generation completed.");
       } else {
-        setNotice(result.ok ? "Generation completed, but no output was returned." : data.error || "Generation failed.");
+        setNotice(
+          result.ok
+            ? "Generation completed, but no output was returned."
+            : data.error || "Generation failed."
+        );
       }
-      if (result.ok) await refreshAccount();
+
+      if (result.ok) {
+        await refreshAccount();
+      }
     } catch {
       setNotice("Could not reach the generation service.");
     } finally {
@@ -117,13 +191,18 @@ export default function Home() {
 
   async function auth(event) {
     event.preventDefault();
-    if (busy) return;
+
+    if (busy) {
+      return;
+    }
 
     const cleanEmail = email.trim().toLowerCase();
+
     if (!cleanEmail || !password) {
       setNotice("Enter your email and password.");
       return;
     }
+
     if (authMode === "register" && password.length < 8) {
       setNotice("Password must be at least 8 characters.");
       return;
@@ -135,22 +214,30 @@ export default function Home() {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15000);
-      let res;
+
+      let response;
       let data;
+
       try {
-        res = await fetch("/api/auth/" + authMode, {
+        response = await fetch("/api/auth/" + authMode, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           credentials: "same-origin",
-          body: JSON.stringify({ email: cleanEmail, password }),
+          body: JSON.stringify({
+            email: cleanEmail,
+            password,
+          }),
           signal: controller.signal,
         });
-        data = await res.json().catch(() => ({}));
+
+        data = await response.json().catch(() => ({}));
       } finally {
         clearTimeout(timer);
       }
 
-      if (!res.ok) {
+      if (!response.ok) {
         setNotice(data.error || "Account request failed.");
         return;
       }
@@ -159,36 +246,121 @@ export default function Home() {
       setEmail("");
       setPassword("");
       setNotice("Account ready.");
+
       await refreshAccount();
     } catch {
-      setNotice("The account service did not respond. Please try again.");
+      setNotice(
+        "The account service did not respond. Please try again."
+      );
     } finally {
       setBusy(false);
     }
   }
 
+  function openViewer(item) {
+    if (!item?.url) {
+      return;
+    }
+
+    setViewer({
+      url: item.url,
+      prompt: item.prompt || "",
+    });
+  }
+
   return (
     <main className="shell">
-      <button type="button" className="mobileMenu" onClick={() => setMobileNav(true)} aria-label="Open navigation">☰</button>\n      {mobileNav && <div className="navBackdrop" onClick={() => setMobileNav(false)} />}\n      <aside className={mobileNav ? "side mobileOpen" : "side"}>
+      <button
+        type="button"
+        className="mobileMenu"
+        onClick={() => setMobileNav(true)}
+        aria-label="Open navigation"
+      >
+        ☰
+      </button>
+
+      {mobileNav && (
+        <div
+          className="navBackdrop"
+          onClick={() => setMobileNav(false)}
+        />
+      )}
+
+      <aside
+        className={
+          mobileNav ? "side mobileOpen" : "side"
+        }
+      >
         <div className="brand">
           <b>✦ AI Media Studio</b>
           <small>Creator workspace</small>
         </div>
+
         <nav>
-          <button type="button" className="active" onClick={() => setMobileNav(false)}>Dashboard</button>
+          <button
+            type="button"
+            className="active"
+            onClick={() => setMobileNav(false)}
+          >
+            Dashboard
+          </button>
+
           <p>CREATE</p>
-          {tools.map((t) => (
-            <button type="button" className={active === t ? "selected" : ""} onClick={() => { setActive(t); setMobileNav(false); }} key={t}>
-              {t}
+
+          {tools.map((tool) => (
+            <button
+              type="button"
+              className={
+                active === tool ? "selected" : ""
+              }
+              onClick={() => {
+                setActive(tool);
+                setMobileNav(false);
+              }}
+              key={tool}
+            >
+              {tool}
             </button>
           ))}
+
           <p>WORKSPACE</p>
-          <a href="/editor">AI Editor</a>
-          <a href="/settings">Settings</a>
+
+          <a
+            href="/editor"
+            onClick={() => setMobileNav(false)}
+          >
+            AI Editor
+          </a>
+
+          <a
+            href="/settings"
+            onClick={() => setMobileNav(false)}
+          >
+            Settings
+          </a>
         </nav>
+
         <div className="usage">
-          <span>Free usage</span><b> {usage.today} / {usage.dailyLimit}</b>
-          <div><i style={{ width: (usage.today / usage.dailyLimit * 100) + "%" }} /></div>
+          <span>Free usage</span>
+          <b>
+            {" "}
+            {usage.today} / {usage.dailyLimit}
+          </b>
+
+          <div>
+            <i
+              style={{
+                width:
+                  Math.min(
+                    100,
+                    (usage.today /
+                      usage.dailyLimit) *
+                      100
+                  ) + "%",
+              }}
+            />
+          </div>
+
           <small>Limit resets daily.</small>
         </div>
       </aside>
@@ -198,26 +370,58 @@ export default function Home() {
           <div>
             <label>CREATOR WORKSPACE</label>
             <h1>Turn ideas into media.</h1>
-            <span>Generate, organize and refine creative concepts from one workspace.</span>
+            <span>
+              Generate, organize and refine creative
+              concepts from one workspace.
+            </span>
           </div>
+
           {user ? (
-            <div className="accountChip">{user.email}</div>
+            <div className="accountChip">
+              {user.email}
+            </div>
           ) : (
             <div className="authActions">
-              <button type="button" className="upgrade" onClick={openLogin}>Sign in</button>
-              <button type="button" className="upgrade" onClick={openRegister}>Create account</button>
+              <button
+                type="button"
+                className="upgrade"
+                onClick={openLogin}
+              >
+                Sign in
+              </button>
+
+              <button
+                type="button"
+                className="upgrade"
+                onClick={openRegister}
+              >
+                Create account
+              </button>
             </div>
           )}
         </header>
 
         <div className="cards">
-          {tools.map((t) => (
-            <button type="button" className={active === t ? "card activeCard" : "card"} onClick={() => setActive(t)} key={t}>
-              <strong>{t}</strong>
+          {tools.map((tool) => (
+            <button
+              type="button"
+              className={
+                active === tool
+                  ? "card activeCard"
+                  : "card"
+              }
+              onClick={() => setActive(tool)}
+              key={tool}
+            >
+              <strong>{tool}</strong>
+
               <small>
-                {t === "AI Image" ? "Create polished visuals from a prompt."
-                  : t === "AI Video" ? "Generate short-form video with the configured video provider."
-                  : t === "AI Frame" ? "Design keyframes and visual sequences."
+                {tool === "AI Image"
+                  ? "Create polished visuals from a prompt."
+                  : tool === "AI Video"
+                  ? "Generate short-form video with the configured video provider."
+                  : tool === "AI Frame"
+                  ? "Design keyframes and visual sequences."
                   : "Plan scenes, shots, and narrative beats."}
               </small>
             </button>
@@ -227,30 +431,108 @@ export default function Home() {
         <div className="workspace">
           <div className="panel">
             <label>{active}</label>
-            <h2>Describe what you want to create</h2>
-            <textarea maxLength={2000} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe your idea, style, mood, camera, subject and details..." />
+
+            <h2>
+              Describe what you want to create
+            </h2>
+
+            <textarea
+              maxLength={2000}
+              value={prompt}
+              onChange={(event) =>
+                setPrompt(event.target.value)
+              }
+              placeholder="Describe your idea, style, mood, camera, subject and details..."
+            />
+
             <div className="foot">
-              <small>{prompt.length}/2000</small>
-              <button type="button" onClick={generate} disabled={busy}>{busy ? "Generating..." : "✦ Generate"}</button>
+              <small>
+                {prompt.length}/2000
+              </small>
+
+              <button
+                type="button"
+                onClick={generate}
+                disabled={busy}
+              >
+                {busy
+                  ? "Generating..."
+                  : "✦ Generate"}
+              </button>
             </div>
-            {notice && <div className="notice">{notice}</div>}
+
+            {notice && (
+              <div className="notice">
+                {notice}
+              </div>
+            )}
           </div>
 
           <div className="panel">
             <label>OUTPUT</label>
+
             <h2>Preview</h2>
+
             <div className="preview">
               {output?.url ? (
                 output.type === "AI Image" ? (
-                  <img className="generatedPreview" src={output.url} alt={output.prompt || "Generated image"} />
+                  <div className="resultWrap">
+                    <img
+                      className="generatedPreview historyImage"
+                      src={output.url}
+                      alt={
+                        output.prompt ||
+                        "Generated image"
+                      }
+                      onClick={() =>
+                        openViewer(output)
+                      }
+                    />
+
+                    <div className="resultActions">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openViewer(output)
+                        }
+                      >
+                        Open
+                      </button>
+
+                      <a
+                        href={output.url}
+                        download="ai-media-studio-image.webp"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  </div>
                 ) : (
-                  <a className="outputLink" href={output.url} target="_blank" rel="noreferrer">Open generated {output.type}</a>
+                  <a
+                    className="outputLink"
+                    href={output.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open generated {output.type}
+                  </a>
                 )
               ) : (
                 <>
                   <b>✦</b>
-                  <strong>{usage.today >= usage.dailyLimit ? "Daily free limit reached" : "Your creation will appear here"}</strong>
-                  <small>Live provider output is returned by the server without exposing provider keys.</small>
+
+                  <strong>
+                    {usage.today >=
+                    usage.dailyLimit
+                      ? "Daily free limit reached"
+                      : "Your creation will appear here"}
+                  </strong>
+
+                  <small>
+                    Live provider output is returned
+                    by the server without exposing
+                    provider keys.
+                  </small>
                 </>
               )}
             </div>
@@ -259,48 +541,234 @@ export default function Home() {
 
         <div className="panel history">
           <label>RECENT</label>
+
           <h2>Generation history</h2>
-          {history.length === 0 ? <p>No generations yet. Sign in and generate to create persistent history.</p> : history.slice(0, 8).map((x) => (
-            <div className="item" key={x.id}>
-              <b>{x.prompt}</b>
-              <small>{x.type} · {new Date(x.created_at).toLocaleString()} · {x.status}</small>
-              {x.output_url && x.status === "completed" && x.type === "AI Image" && (
-                <img className="historyImage" src={x.output_url} alt={x.prompt} />
-              )}
-            </div>
-          ))}
+
+          {history.length === 0 ? (
+            <p>
+              No generations yet. Sign in and
+              generate to create persistent history.
+            </p>
+          ) : (
+            history.slice(0, 8).map((item) => (
+              <div
+                className="item"
+                key={item.id}
+              >
+                <b>{item.prompt}</b>
+
+                <small>
+                  {item.type} ·{" "}
+                  {new Date(
+                    item.created_at
+                  ).toLocaleString()}{" "}
+                  · {item.status}
+                </small>
+
+                {item.output_url &&
+                  item.status === "completed" &&
+                  item.type === "AI Image" && (
+                    <img
+                      className="historyImage"
+                      src={
+                        "/api/generations/" +
+                        item.id +
+                        "/media"
+                      }
+                      alt={item.prompt}
+                      onClick={() =>
+                        openViewer({
+                          url:
+                            "/api/generations/" +
+                            item.id +
+                            "/media",
+                          prompt: item.prompt,
+                        })
+                      }
+                    />
+                  )}
+              </div>
+            ))
+          )}
         </div>
 
-        <footer>AI Media Studio · <a href="/api/health">API health</a></footer>
+        <footer>
+          AI Media Studio ·{" "}
+          <a href="/api/health">
+            API health
+          </a>
+        </footer>
+      </section>
 
-{viewer && (
-  <div className="viewer" onClick={() => setViewer(null)}>
-    <div
-      className="viewerInner"
-      onClick={(event) => event.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="viewerClose"
-        onClick={() => setViewer(null)}
-        aria-label="Close image viewer"
-      >
-        ×
-      </button>
+      {viewer && (
+        <div
+          className="viewer"
+          onClick={() => setViewer(null)}
+        >
+          <div
+            className="viewerInner"
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <button
+              type="button"
+              className="viewerClose"
+              onClick={() => setViewer(null)}
+              aria-label="Close image viewer"
+            >
+              ×
+            </button>
 
-      <img
-        src={viewer.url}
-        alt={viewer.prompt || "Generated image"}
-      />
+            <img
+              src={viewer.url}
+              alt={
+                viewer.prompt ||
+                "Generated image"
+              }
+            />
 
-      <p>{viewer.prompt}</p>
+            <p>{viewer.prompt}</p>
 
-      <a
-        href={viewer.url}
-        download="ai-media-studio-image.webp"
-      >
-        Download image
-      </a>
-    </div>
-  </div>
-)}
+            <a
+              href={viewer.url}
+              download="ai-media-studio-image.webp"
+            >
+              Download image
+            </a>
+          </div>
+        </div>
+      )}
+
+      {showAuth && (
+        <div
+          className="modal"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget
+            ) {
+              closeAuth();
+            }
+          }}
+        >
+          <form
+            className="auth"
+            onSubmit={auth}
+          >
+            <button
+              type="button"
+              className="viewerClose"
+              onClick={closeAuth}
+              aria-label="Close"
+            >
+              ×
+            </button>
+
+            <label>
+              {authMode === "login"
+                ? "WELCOME BACK"
+                : "CREATE ACCOUNT"}
+            </label>
+
+            <h2>
+              {authMode === "login"
+                ? "Sign in to AI Media Studio"
+                : "Create your account"}
+            </h2>
+
+            <p>
+              {authMode === "login"
+                ? "Access your generations, history and workspace."
+                : "Start creating with your free daily generations."}
+            </p>
+
+            <input
+              type="email"
+              value={email}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
+              placeholder="Email address"
+              autoComplete="email"
+              required
+            />
+
+            <input
+              type="password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              placeholder="Password"
+              autoComplete={
+                authMode === "login"
+                  ? "current-password"
+                  : "new-password"
+              }
+              minLength={
+                authMode === "register"
+                  ? 8
+                  : undefined
+              }
+              required
+            />
+
+            <button
+              type="submit"
+              disabled={busy}
+            >
+              {busy
+                ? "Please wait..."
+                : authMode === "login"
+                ? "Sign in"
+                : "Create account"}
+            </button>
+
+            <div className="authDivider">
+              <span>OR</span>
+            </div>
+
+            <button
+              type="button"
+              className="googleButton"
+              onClick={signInWithGoogle}
+              disabled={busy}
+            >
+              Continue with Google
+            </button>
+
+            <div className="authSwitch">
+              {authMode === "login" ? (
+                <>
+                  <span>
+                    Don't have an account?
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={openRegister}
+                  >
+                    Create account
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>
+                    Already have an account?
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={openLogin}
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
+          </form>
+        </div>
+      )}
+    </main>
+  );
+          }
