@@ -5,16 +5,15 @@ import Link from "next/link";
 import Sidebar from "./components/Sidebar";
 
 const tools = [
-  ["AI Image","/image","Create realistic images from prompts."],
-  ["AI Video","/video","Generate short-form video."],
-  ["Scene Generator","/scenes","Build structured visual scenes."],
-  ["Storyboard","/storyboard","Plan shots and narrative beats."],
+  ["AI Image","/image","Create polished images from text prompts.","IMAGE"],
+  ["AI Video","/video","Turn ideas into short-form video.","VIDEO"],
+  ["Scene Generator","/scenes","Develop complete visual scenes.","SCENE"],
+  ["Storyboard","/storyboard","Plan shots and narrative beats.","STORY"],
+  ["AI Editor","/editor","Refine and assemble your media.","EDIT"],
 ];
 
 export default function Home() {
   const [user,setUser]=useState(null);
-  const [usage,setUsage]=useState({today:0,dailyLimit:10});
-  const [history,setHistory]=useState([]);
   const [mobileNav,setMobileNav]=useState(false);
   const [showAuth,setShowAuth]=useState(false);
   const [mode,setMode]=useState("login");
@@ -22,6 +21,7 @@ export default function Home() {
   const [password,setPassword]=useState("");
   const [notice,setNotice]=useState("");
   const [busy,setBusy]=useState(false);
+  const [projectCount,setProjectCount]=useState(0);
 
   useEffect(()=>{load();},[]);
 
@@ -30,12 +30,8 @@ export default function Home() {
       const me=await fetch("/api/auth/me").then(r=>r.json());
       setUser(me.user||null);
       if(!me.user)return;
-      const [a,h]=await Promise.all([
-        fetch("/api/account").then(r=>r.json()),
-        fetch("/api/generations").then(r=>r.json())
-      ]);
-      if(a.usage)setUsage(a.usage);
-      if(h.generations)setHistory(h.generations);
+      const h=await fetch("/api/generations").then(r=>r.json());
+      setProjectCount((h.generations||[]).length);
     }catch{}
   }
 
@@ -43,7 +39,11 @@ export default function Home() {
     e.preventDefault();
     setBusy(true);setNotice("");
     try{
-      const r=await fetch("/api/auth/"+mode,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email.trim().toLowerCase(),password})});
+      const r=await fetch("/api/auth/"+mode,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({email:email.trim().toLowerCase(),password})
+      });
       const data=await r.json().catch(()=>({}));
       if(!r.ok){setNotice(data.error||"Account request failed.");return;}
       setShowAuth(false);setEmail("");setPassword("");await load();
@@ -51,37 +51,95 @@ export default function Home() {
     finally{setBusy(false);}
   }
 
+  function openAuth(nextMode){
+    setMode(nextMode);
+    setNotice("");
+    setShowAuth(true);
+  }
+
   return <main className="shell">
-    <button className="mobileMenu" onClick={()=>setMobileNav(true)}>☰</button>
+    <button className="mobileMenu" onClick={()=>setMobileNav(true)} aria-label="Open navigation">☰</button>
     {mobileNav&&<div className="navBackdrop" onClick={()=>setMobileNav(false)}/>}
     <Sidebar mobileOpen={mobileNav} onNavigate={()=>setMobileNav(false)}/>
+
     <section className="content">
       <header>
-        <div><label>HOME · DASHBOARD</label><h1>Welcome to AI Media Studio.</h1><span>Choose a creative tool and build your next piece of media.</span></div>
-        {user?<div className="accountChip">{user.email}</div>:<div className="authActions"><button className="upgrade" onClick={()=>{setMode("login");setShowAuth(true)}}>Sign in</button><button className="upgrade" onClick={()=>{setMode("register");setShowAuth(true)}}>Create account</button></div>}
+        <div>
+          <label>HOME · DASHBOARD</label>
+          <h1>Creative command center.</h1>
+          <span>Generate, edit and organize your AI media from one workspace.</span>
+        </div>
+        {!user&&<div className="authActions">
+          <button className="upgrade" onClick={()=>openAuth("login")}>Sign in</button>
+          <button className="upgrade" onClick={()=>openAuth("register")}>Create account</button>
+        </div>}
       </header>
 
-      <div className="cards">{tools.map(([name,href,desc])=><Link className="card" href={href} key={href}><strong>{name}</strong><small>{desc}</small></Link>)}<Link className="card" href="/editor"><strong>AI Editor</strong><small>Trim, preview and refine media in your browser.</small></Link></div>
+      <div className="balanceHero">
+        <div>
+          <label>ACCOUNT BALANCE</label>
+          <div className="balance">$0.00</div>
+          <small>Available funds for paid AI services</small>
+        </div>
+        <Link className="primaryAction" href="/settings">Fund account</Link>
+      </div>
+
+      <div className="statGrid">
+        <div className="statCard">
+          <span>PLAN</span>
+          <strong>Free</strong>
+          <small>Starter workspace</small>
+        </div>
+        <div className="statCard">
+          <span>PROJECTS</span>
+          <strong>{projectCount}</strong>
+          <small>Saved generations</small>
+        </div>
+        <div className="statCard">
+          <span>MEDIA TOOLS</span>
+          <strong>5</strong>
+          <small>Available in your studio</small>
+        </div>
+        <div className="statCard">
+          <span>WORKSPACE</span>
+          <strong>Ready</strong>
+          <small>Start a new project</small>
+        </div>
+      </div>
+
+      <div className="sectionHeading">
+        <div>
+          <label>CREATE</label>
+          <h2>Choose a tool</h2>
+        </div>
+        <span>Start with an idea and build from there.</span>
+      </div>
+
+      <div className="cards">
+        {tools.map(([name,href,desc,tag])=><Link className="card" href={href} key={href}>
+          <span className="toolTag">{tag}</span>
+          <strong>{name}</strong>
+          <small>{desc}</small>
+          <b>Open tool →</b>
+        </Link>)}
+      </div>
 
       <div className="workspace">
         <div className="panel">
-          <label>DAILY USAGE</label><h2>Your generation allowance</h2>
-          <strong>{usage.today} / {usage.dailyLimit} generations used today</strong>
-          <div className="usage" style={{marginTop:14}}><div><i style={{width:Math.min(100,(usage.today/usage.dailyLimit)*100)+"%"}}/></div><small>Limit resets daily.</small></div>
+          <label>QUICK START</label>
+          <h2>Create your first visual</h2>
+          <p>Describe an idea, generate the media, then continue refining it in the AI Editor.</p>
+          <Link className="outputLink" href="/image">Start with AI Image</Link>
         </div>
         <div className="panel">
-          <label>QUICK START</label><h2>Start creating</h2>
-          <p>Open AI Image for the working image-generation interface, or choose another tool from the sidebar.</p>
-          <Link className="outputLink" href="/image">Open AI Image</Link>
+          <label>YOUR WORKSPACE</label>
+          <h2>Everything in one place</h2>
+          <p>Use the sidebar to move between creation tools, your editor and account settings without leaving the studio.</p>
+          <Link className="outputLink" href="/editor">Open AI Editor</Link>
         </div>
       </div>
 
-      <div className="panel history">
-        <label>RECENT</label><h2>Recent creations</h2>
-        {history.length===0?<p>No creations yet. Choose a tool above to get started.</p>:history.slice(0,8).map(item=><div className="item" key={item.id}><b>{item.prompt}</b><small>{item.type} · {new Date(item.created_at).toLocaleString()} · {item.status}</small></div>)}
-      </div>
-
-      <footer>AI Media Studio · <a href="/api/health">API health</a></footer>
+      <footer>AI Media Studio · <a href="/api/health">System status</a> · <Link href="/settings">Settings</Link></footer>
     </section>
 
     {showAuth&&<div className="modal" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setShowAuth(false)}}>
