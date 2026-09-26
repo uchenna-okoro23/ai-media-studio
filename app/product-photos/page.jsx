@@ -1,0 +1,2 @@
+import FeatureWorkspace from "../components/FeatureWorkspace";
+export default function Page(){return <FeatureWorkspace eyebrow="CREATE / PRODUCT" title="AI Product Photos" description="Turn product images into polished ecommerce photography and campaign-ready scenes." features={["AI-generated backgrounds","Product-preserving compositions","Lifestyle and studio scenes","Multiple aspect ratios"]} inputLabel="Product brief" placeholder="Example: premium skincare bottle on a clean marble bathroom counter..." />}
