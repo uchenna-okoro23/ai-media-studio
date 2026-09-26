@@ -1,0 +1,3 @@
+"use client";
+import {useState} from "react";
+export default function FeatureWorkspace({eyebrow,title,description,features}){const [text,setText]=useState("");return <main className="editorShell"><header className="editorHeader"><div><label>{eyebrow}</label><h1>{title}</h1><span>{description}</span></div><a href="/">Back to Studio</a></header><section className="editorGrid"><div className="editorPanel"><label>WORKSPACE</label><textarea value={text} onChange={e=>setText(e.target.value)} rows={8} placeholder="Describe what you want to create..."/><button className="primary" disabled={!text.trim()}>Create</button></div><div className="editorPanel"><label>CAPABILITIES</label>{features.map(x=><p key={x}>✓ {x}</p>)}</div></section></main>}
