@@ -21,16 +21,36 @@ export default function Home() {
     refreshAccount();
   }, []);
 
+  async function fetchJson(url, options = {}, timeoutMs = 10000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        cache: "no-store",
+        credentials: "same-origin",
+        ...options,
+        signal: controller.signal,
+      });
+      return await response.json().catch(() => ({}));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function refreshAccount() {
-    const me = await fetch("/api/auth/me").then((r) => r.json()).catch(() => ({}));
-    setUser(me.user || null);
-    if (me.user) {
+    try {
+      const me = await fetchJson("/api/auth/me");
+      setUser(me.user || null);
+      if (!me.user) return;
+
       const [a, h] = await Promise.all([
-        fetch("/api/account").then((r) => r.json()),
-        fetch("/api/generations").then((r) => r.json()),
+        fetchJson("/api/account"),
+        fetchJson("/api/generations"),
       ]);
       if (a.usage) setUsage(a.usage);
       if (h.generations) setHistory(h.generations);
+    } catch {
+      setUser(null);
     }
   }
 
@@ -64,12 +84,11 @@ export default function Home() {
     setBusy(true);
     setNotice("");
     try {
-      const res = await fetch("/api/generate", {
+      const data = await fetchJson("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: active, prompt }),
       });
-      const data = await res.json();
       if (data.usage) setUsage((u) => ({ ...u, today: data.usage.used }));
       setNotice(res.ok ? "Generation completed." : data.error || "Generation failed.");
       if (res.ok) await refreshAccount();
@@ -98,13 +117,22 @@ export default function Home() {
     setNotice("");
 
     try {
-      const res = await fetch("/api/auth/" + authMode, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ email: cleanEmail, password }),
-      });
-      const data = await res.json().catch(() => ({}));
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      let res;
+      let data;
+      try {
+        res = await fetch("/api/auth/" + authMode, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ email: cleanEmail, password }),
+          signal: controller.signal,
+        });
+        data = await res.json().catch(() => ({}));
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (!res.ok) {
         setNotice(data.error || "Account request failed.");
@@ -117,7 +145,7 @@ export default function Home() {
       setNotice("Account ready.");
       await refreshAccount();
     } catch {
-      setNotice("Could not reach the account service.");
+      setNotice("The account service did not respond. Please try again.");
     } finally {
       setBusy(false);
     }
