@@ -256,6 +256,8 @@ export default function Home() {
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" required />
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password (8+ characters)" autoComplete={authMode === "login" ? "current-password" : "new-password"} required minLength={authMode === "register" ? 8 : 1} />
               <button type="submit" className="authBtn" disabled={busy}>{busy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"}</button>
+              <div className="googleDivider"><span>or</span></div>
+              <a className="authBtn googleBtn" href="/api/auth/google">Continue with Google</a>
               <button type="button" className="switch" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setNotice(""); }}>
                 {authMode === "login" ? "Need an account? Create one" : "Already have an account? Sign in"}
               </button>
