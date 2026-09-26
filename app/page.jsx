@@ -17,6 +17,8 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [usage, setUsage] = useState({ today: 0, dailyLimit: 10 });
   const [output, setOutput] = useState(null);
+  const [mobileNav, setMobileNav] = useState(false);
+  const [viewer, setViewer] = useState(null);
 
   useEffect(() => {
     refreshAccount();
@@ -54,7 +56,7 @@ export default function Home() {
       if (h.generations) {
         setHistory(h.generations);
         const latest = h.generations.find((x) => x.output_url && x.status === "completed");
-        if (latest) setOutput({ type: latest.type, url: latest.output_url, prompt: latest.prompt });
+        if (latest) setOutput({ id: latest.id, type: latest.type, url: "/api/generations/" + latest.id + "/media", prompt: latest.prompt });
       }
     } catch {
       setUser(null);
@@ -100,7 +102,7 @@ export default function Home() {
       const data = result.data;
       if (data.usage) setUsage((u) => ({ ...u, today: data.usage.used }));
       if (result.ok && data.url) {
-        setOutput({ type: active, url: data.url, prompt });
+        setOutput({ id: data.id, type: active, url: active === "AI Image" ? "/api/generations/" + data.id + "/media" : data.url, prompt });
         setNotice("Generation completed.");
       } else {
         setNotice(result.ok ? "Generation completed, but no output was returned." : data.error || "Generation failed.");
@@ -167,16 +169,16 @@ export default function Home() {
 
   return (
     <main className="shell">
-      <aside className="side">
+      <button type="button" className="mobileMenu" onClick={() => setMobileNav(true)} aria-label="Open navigation">☰</button>\n      {mobileNav && <div className="navBackdrop" onClick={() => setMobileNav(false)} />}\n      <aside className={mobileNav ? "side mobileOpen" : "side"}>
         <div className="brand">
           <b>✦ AI Media Studio</b>
           <small>Creator workspace</small>
         </div>
         <nav>
-          <button type="button" className="active">Dashboard</button>
+          <button type="button" className="active" onClick={() => setMobileNav(false)}>Dashboard</button>
           <p>CREATE</p>
           {tools.map((t) => (
-            <button type="button" className={active === t ? "selected" : ""} onClick={() => setActive(t)} key={t}>
+            <button type="button" className={active === t ? "selected" : ""} onClick={() => { setActive(t); setMobileNav(false); }} key={t}>
               {t}
             </button>
           ))}
@@ -271,7 +273,7 @@ export default function Home() {
 
         <footer>AI Media Studio · <a href="/api/health">API health</a></footer>
 
-        {showAuth && (
+        {viewer && (\n          <div className="viewer" onClick={() => setViewer(null)}>\n            <div className="viewerInner" onClick={(e) => e.stopPropagation()}>\n              <button type="button" className="viewerClose" onClick={() => setViewer(null)}>×</button>\n              <img src={viewer.url} alt={viewer.prompt || "Generated image"} />\n              <p>{viewer.prompt}</p>\n              <a href={viewer.url} download="ai-media-studio-image.webp">Download image</a>\n            </div>\n          </div>\n        )}\n\n        {showAuth && (
           <div className="modal" onMouseDown={(e) => { if (e.target === e.currentTarget) closeAuth(); }}>
             <form className="auth" onSubmit={auth}>
               <button type="button" className="close" onClick={closeAuth} disabled={busy} aria-label="Close">×</button>
