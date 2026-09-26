@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import Sidebar from "./components/Sidebar";
 
-const tools = ["AI Image", "AI Video", "AI Frame", "Storyboard"];
+const tools = ["AI Image", "AI Video", "Scene Generator", "Storyboard"];
 
 export default function Home() {
   const [active, setActive] = useState("AI Image");
@@ -286,84 +288,10 @@ export default function Home() {
         />
       )}
 
-      <aside
-        className={
-          mobileNav ? "side mobileOpen" : "side"
-        }
-      >
-        <div className="brand">
-          <b>✦ AI Media Studio</b>
-          <small>Creator workspace</small>
-        </div>
-
-        <nav>
-          <button
-            type="button"
-            className="active"
-            onClick={() => setMobileNav(false)}
-          >
-            Dashboard
-          </button>
-
-          <p>CREATE</p>
-
-          {tools.map((tool) => (
-            <button
-              type="button"
-              className={
-                active === tool ? "selected" : ""
-              }
-              onClick={() => {
-                setActive(tool);
-                setMobileNav(false);
-              }}
-              key={tool}
-            >
-              {tool}
-            </button>
-          ))}
-
-          <p>WORKSPACE</p>
-
-          <a
-            href="/editor"
-            onClick={() => setMobileNav(false)}
-          >
-            AI Editor
-          </a>
-
-          <a
-            href="/settings"
-            onClick={() => setMobileNav(false)}
-          >
-            Settings
-          </a>
-        </nav>
-
-        <div className="usage">
-          <span>Free usage</span>
-          <b>
-            {" "}
-            {usage.today} / {usage.dailyLimit}
-          </b>
-
-          <div>
-            <i
-              style={{
-                width:
-                  Math.min(
-                    100,
-                    (usage.today /
-                      usage.dailyLimit) *
-                      100
-                  ) + "%",
-              }}
-            />
-          </div>
-
-          <small>Limit resets daily.</small>
-        </div>
-      </aside>
+      <Sidebar
+        mobileOpen={mobileNav}
+        onNavigate={() => setMobileNav(false)}
+      />
 
       <section className="content">
         <header>
@@ -402,30 +330,35 @@ export default function Home() {
         </header>
 
         <div className="cards">
-          {tools.map((tool) => (
-            <button
-              type="button"
-              className={
-                active === tool
-                  ? "card activeCard"
-                  : "card"
-              }
-              onClick={() => setActive(tool)}
-              key={tool}
-            >
-              <strong>{tool}</strong>
+          {tools.map((tool) => {
+            const href =
+              tool === "AI Image"
+                ? "/image"
+                : tool === "AI Video"
+                ? "/video"
+                : tool === "Scene Generator"
+                ? "/scenes"
+                : "/storyboard";
 
-              <small>
-                {tool === "AI Image"
-                  ? "Create polished visuals from a prompt."
-                  : tool === "AI Video"
-                  ? "Generate short-form video with the configured video provider."
-                  : tool === "AI Frame"
-                  ? "Design keyframes and visual sequences."
-                  : "Plan scenes, shots, and narrative beats."}
-              </small>
-            </button>
-          ))}
+            return (
+              <Link
+                href={href}
+                className="card"
+                key={tool}
+              >
+                <strong>{tool}</strong>
+                <small>
+                  {tool === "AI Image"
+                    ? "Create polished visuals from a prompt."
+                    : tool === "AI Video"
+                    ? "Generate short-form video with the configured video provider."
+                    : tool === "Scene Generator"
+                    ? "Turn a story idea into structured visual scenes."
+                    : "Plan scenes, shots, and narrative beats."}
+                </small>
+              </Link>
+            );
+          })}
         </div>
 
         <div className="workspace">
