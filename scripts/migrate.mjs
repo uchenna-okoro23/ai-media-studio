@@ -44,6 +44,22 @@ try {
 
     CREATE INDEX IF NOT EXISTS idx_generations_user_created
       ON generations(user_id, created_at DESC);
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_kobo BIGINT NOT NULL DEFAULT 0;
+
+    CREATE TABLE IF NOT EXISTS wallet_transactions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reference TEXT NOT NULL UNIQUE,
+      type TEXT NOT NULL,
+      amount_kobo BIGINT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      provider TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_created
+      ON wallet_transactions(user_id, created_at DESC);
   `);
 
   console.log("Database schema ready.");
