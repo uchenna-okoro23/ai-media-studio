@@ -31,8 +31,16 @@ try {
       prompt TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'processing',
       output_url TEXT,
+      output_data BYTEA,
+      output_mime TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    ALTER TABLE generations
+      ADD COLUMN IF NOT EXISTS output_data BYTEA;
+
+    ALTER TABLE generations
+      ADD COLUMN IF NOT EXISTS output_mime TEXT;
 
     CREATE INDEX IF NOT EXISTS idx_generations_user_created
       ON generations(user_id, created_at DESC);
