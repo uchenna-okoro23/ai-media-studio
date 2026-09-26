@@ -90,7 +90,7 @@ export async function GET(request) {
 
     const response = redirect(request, "/");
     setSession(response, user);
-    response.headers.set(
+    response.headers.append(
       "Set-Cookie",
       "google_oauth_state=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax" +
         (process.env.NODE_ENV === "production" ? "; Secure" : "")
