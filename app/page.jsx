@@ -16,6 +16,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [user, setUser] = useState(null);
   const [usage, setUsage] = useState({ today: 0, dailyLimit: 10 });
+  const [output, setOutput] = useState(null);
 
   useEffect(() => {
     refreshAccount();
@@ -50,7 +51,11 @@ export default function Home() {
       const a = aResult.data;
       const h = hResult.data;
       if (a.usage) setUsage(a.usage);
-      if (h.generations) setHistory(h.generations);
+      if (h.generations) {
+        setHistory(h.generations);
+        const latest = h.generations.find((x) => x.output_url && x.status === "completed");
+        if (latest) setOutput({ type: latest.type, url: latest.output_url, prompt: latest.prompt });
+      }
     } catch {
       setUser(null);
     }
@@ -85,15 +90,21 @@ export default function Home() {
 
     setBusy(true);
     setNotice("");
+    setOutput(null);
     try {
       const result = await fetchJson("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: active, prompt }),
-      });
+      }, 90000);
       const data = result.data;
       if (data.usage) setUsage((u) => ({ ...u, today: data.usage.used }));
-      setNotice(result.ok ? "Generation completed." : data.error || "Generation failed.");
+      if (result.ok && data.url) {
+        setOutput({ type: active, url: data.url, prompt });
+        setNotice("Generation completed.");
+      } else {
+        setNotice(result.ok ? "Generation completed, but no output was returned." : data.error || "Generation failed.");
+      }
       if (result.ok) await refreshAccount();
     } catch {
       setNotice("Could not reach the generation service.");
@@ -227,9 +238,19 @@ export default function Home() {
             <label>OUTPUT</label>
             <h2>Preview</h2>
             <div className="preview">
-              <b>✦</b>
-              <strong>{usage.today >= usage.dailyLimit ? "Daily free limit reached" : "Your creation will appear here"}</strong>
-              <small>Live provider output is returned by the server without exposing provider keys.</small>
+              {output?.url ? (
+                output.type === "AI Image" ? (
+                  <img className="generatedPreview" src={output.url} alt={output.prompt || "Generated image"} />
+                ) : (
+                  <a className="outputLink" href={output.url} target="_blank" rel="noreferrer">Open generated {output.type}</a>
+                )
+              ) : (
+                <>
+                  <b>✦</b>
+                  <strong>{usage.today >= usage.dailyLimit ? "Daily free limit reached" : "Your creation will appear here"}</strong>
+                  <small>Live provider output is returned by the server without exposing provider keys.</small>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -241,6 +262,9 @@ export default function Home() {
             <div className="item" key={x.id}>
               <b>{x.prompt}</b>
               <small>{x.type} · {new Date(x.created_at).toLocaleString()} · {x.status}</small>
+              {x.output_url && x.status === "completed" && x.type === "AI Image" && (
+                <img className="historyImage" src={x.output_url} alt={x.prompt} />
+              )}
             </div>
           ))}
         </div>
