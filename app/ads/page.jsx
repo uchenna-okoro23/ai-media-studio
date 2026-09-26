@@ -1,0 +1,2 @@
+import FeatureWorkspace from "../components/FeatureWorkspace";
+export default function Page(){return <FeatureWorkspace eyebrow="CREATE / MARKETING" title="AI Ads" description="Build advertising concepts, scripts and creative variations from a product or campaign brief." features={["Ad script generation","Hooks and CTAs","Creative variations","Vertical social formats"]} inputLabel="Product or campaign brief" placeholder="Paste a product description, campaign brief, or website URL..." />}
