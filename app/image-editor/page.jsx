@@ -1,0 +1,2 @@
+import FeatureWorkspace from "../components/FeatureWorkspace";
+export default function Page(){return <FeatureWorkspace eyebrow="EDIT" title="Image Editor" description="Edit images with prompt-driven transformations." features={["Generative fill","Magic erase","Background replacement"]}/>
