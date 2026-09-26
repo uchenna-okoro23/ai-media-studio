@@ -31,7 +31,7 @@ export default function Home() {
         ...options,
         signal: controller.signal,
       });
-      return await response.json().catch(() => ({}));
+      return { ok: response.ok, status: response.status, data: await response.json().catch(() => ({})) };
     } finally {
       clearTimeout(timer);
     }
@@ -39,14 +39,16 @@ export default function Home() {
 
   async function refreshAccount() {
     try {
-      const me = await fetchJson("/api/auth/me");
+      const me = (await fetchJson("/api/auth/me")).data;
       setUser(me.user || null);
       if (!me.user) return;
 
-      const [a, h] = await Promise.all([
+      const [aResult, hResult] = await Promise.all([
         fetchJson("/api/account"),
         fetchJson("/api/generations"),
       ]);
+      const a = aResult.data;
+      const h = hResult.data;
       if (a.usage) setUsage(a.usage);
       if (h.generations) setHistory(h.generations);
     } catch {
@@ -84,14 +86,15 @@ export default function Home() {
     setBusy(true);
     setNotice("");
     try {
-      const data = await fetchJson("/api/generate", {
+      const result = await fetchJson("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: active, prompt }),
       });
+      const data = result.data;
       if (data.usage) setUsage((u) => ({ ...u, today: data.usage.used }));
-      setNotice(res.ok ? "Generation completed." : data.error || "Generation failed.");
-      if (res.ok) await refreshAccount();
+      setNotice(result.ok ? "Generation completed." : data.error || "Generation failed.");
+      if (result.ok) await refreshAccount();
     } catch {
       setNotice("Could not reach the generation service.");
     } finally {
