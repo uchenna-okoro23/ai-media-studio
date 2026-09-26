@@ -20,3 +20,9 @@
  .side.mobileOpen{transform:translateX(0)}
  .content{padding:70px 14px 22px}
 }
+
+/* Shared sidebar navigation */
+.side{flex-shrink:0}
+.brand strong{display:block;font-size:14px}.brand span{display:block;color:#777d8c;font-size:11px;margin-top:4px}
+.sidebarNav{display:flex;flex-direction:column;gap:2px}.navSection{margin-bottom:12px}.navSectionTitle{font-size:9px;letter-spacing:1.5px;color:#606676;margin:12px 10px 7px}.navItem{display:block;width:100%;border:0;background:none;color:#999fac;text-align:left;padding:10px;border-radius:8px;margin:2px 0;text-decoration:none;font-size:13px}.navItem:hover,.navItem.active{background:#181b24;color:#fff}
+.card{text-decoration:none;display:block}
