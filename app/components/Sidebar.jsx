@@ -39,15 +39,7 @@ const sections = [
 export default function Sidebar({ mobileOpen = false, onNavigate }) {
   const pathname = usePathname();
 
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("ams_brand") || "{}");
-      const color = typeof saved.color === "string" && /^#[0-9a-f]{6}$/i.test(saved.color)
-        ? saved.color
-        : "#ffffff";
-      document.documentElement.style.setProperty("--brand-accent", color);
-    } catch {}
-  }, [pathname]);
+  useEffect(() => { fetch("/api/brand-kit").then(r=>r.ok?r.json():null).then(d=>{const color=d?.brand?.color;if(typeof color==="string"&&/^#[0-9a-f]{6}$/i.test(color))document.documentElement.style.setProperty("--brand-accent",color)}).catch(()=>{}); }, [pathname]);
 
   return (
     <aside className={`side ${mobileOpen ? "mobileOpen" : ""}`}>
