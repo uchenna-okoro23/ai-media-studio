@@ -59,6 +59,7 @@ export async function POST(request) {
 
   const prompt = String(body.prompt || "").trim();
   const type = String(body.type || "AI Image").trim();
+  const billingMode = String(body.billingMode || "free").trim() === "wallet" ? "wallet" : "free";
 
   if (!prompt) {
     return Response.json(
@@ -153,7 +154,21 @@ export async function POST(request) {
       userId: user.sub,
       generationId,
       type,
+      billingMode,
     });
+
+    if (billing.mode === "free_unavailable") {
+      await client.query("ROLLBACK");
+      return Response.json(
+        {
+          error: "Daily free generation limit reached. Choose Wallet Balance to continue.",
+          limit: DAILY_LIMIT,
+          used: usageCount,
+          remaining: 0,
+        },
+        { status: 429 }
+      );
+    }
 
     if (billing.mode === "insufficient_balance") {
       await client.query("ROLLBACK");
@@ -163,8 +178,9 @@ export async function POST(request) {
           error: "Insufficient AI Media Studio wallet balance.",
           requiredNgn: billing.costKobo / 100,
           balanceNgn: billing.balanceKobo / 100,
-          freeGenerations: DAILY_LIMIT,
-          message: "Fund your AI Media Studio wallet to continue generating after the free allowance.",
+          freeGenerations: Math.max(0, DAILY_LIMIT - usageCount),
+          billingMode,
+          message: "Choose Daily Free Limit while free generations remain, or fund your wallet to use Wallet Balance.",
         },
         { status: 402 }
       );
