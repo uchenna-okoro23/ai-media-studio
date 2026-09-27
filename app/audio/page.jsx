@@ -34,22 +34,30 @@ export default function AudioPage(){
 
   function speak(){
     if(!text.trim()) return;
-    const selected=freeVoices.find(v=>v.id===voice);
-    if(selected?.preview_url){
-      setPreviewUrl(selected.preview_url);
-      setSpeaking(true);
-      setTimeout(()=>setSpeaking(false),2500);
-      return;
-    }
+    setPreviewUrl("");
     window.speechSynthesis.cancel();
+    const selected=freeVoices.find(v=>v.id===voice);
+    const selectedName=selected?.name||clonedVoices.find(v=>v.id===voice)?.name||"";
+    const lower=selectedName.toLowerCase();
+    const v=browserVoices.find(x=>{
+      const n=x.name.toLowerCase();
+      return n===lower || n.includes(lower) || lower.includes(n);
+    }) || browserVoices.find(x=>/english|en-us|en-gb|google|microsoft/i.test(x.name));
     const u=new SpeechSynthesisUtterance(text);
     u.rate=Number(rate);
-    const v=browserVoices.find(x=>x.name===voice);
     if(v) u.voice=v;
     u.onstart=()=>setSpeaking(true);
     u.onend=()=>setSpeaking(false);
     u.onerror=()=>setSpeaking(false);
     window.speechSynthesis.speak(u);
+  }
+
+  function previewVoiceSample(){
+    const selected=freeVoices.find(v=>v.id===voice);
+    if(!selected?.preview_url) return;
+    window.speechSynthesis.cancel();
+    setPreviewUrl(selected.preview_url);
+    setSpeaking(true);
   }
   function stop(){window.speechSynthesis.cancel();setSpeaking(false);setPreviewUrl("");}
 
@@ -125,9 +133,10 @@ export default function AudioPage(){
             </label>
           </div>
           <div className="actionRow">
-            <button className="primary" onClick={speaking?stop:speak} disabled={!text.trim()||!voice}>{speaking?"Stop preview":"▶ Voice preview"}</button>
+            <button className="primary" onClick={speaking?stop:speak} disabled={!text.trim()||!voice}>{speaking?"Stop text test":"▶ Test my text"}</button>
+            <button className="secondary" onClick={previewVoiceSample} disabled={!voice||!freeVoices.some(v=>v.id===voice&&v.preview_url)}>Play voice sample</button>
             <button className="secondary" onClick={generateVoiceover} disabled={generateBusy||!text.trim()||!voice}>{generateBusy?"Generating…":"Generate production voiceover"}</button>
-            <small>{text.length} characters</small>
+            <small>{text.length} characters · Text test uses your device speech engine and does not use a generation.</small>
           </div>
           {audioUrl&&<div style={{marginTop:18}}><label>GENERATED AUDIO</label><audio ref={audioRef} controls src={audioUrl} style={{width:"100%",marginTop:8}}/></div>}
           {previewUrl&&<audio autoPlay src={previewUrl} onEnded={()=>setSpeaking(false)} style={{display:"none"}}/>}
@@ -135,14 +144,14 @@ export default function AudioPage(){
 
         <section className="panel">
           <label>FREE PREMADE VOICES</label><h2>Generate with free voices</h2>
-          <p>Use an available ElevenLabs premade voice for YouTube narration. Choose one above, write your script, then generate the production voiceover.</p>
+          <p>Choose a production voice, test your script without using a generation, then generate only when you are satisfied.</p>
           <div className="voiceGrid">
             {freeVoices.length===0?<p>Loading available voices…</p>:freeVoices.map(v=><button type="button" className={voice===v.id?"voiceCard selected":"voiceCard"} key={v.id} onClick={()=>setVoice(v.id)}><strong>{v.name}</strong><span>{v.description||"Premade narration voice"}</span></button>)}
           </div>
           {!providerConfigured&&<small>Voice provider is not configured on the server. Browser preview is still available.</small>}
           <div className="cloneBox">
           <label>YOUR VOICE CLONE</label><h3>Clone your own voice</h3>
-          <p>Upload a clean recording. ElevenLabs recommends about 1–2 minutes of clear audio for Instant Voice Cloning. Keep the recording to one speaker with minimal background noise.</p>
+          <p>Upload a clean recording. For best results, use about 1–2 minutes of clear audio from one speaker with minimal background noise.</p>
           <input className="textInput" value={name} onChange={e=>setName(e.target.value)} placeholder="Voice name"/>
           <input id="voiceFiles" className="textInput" type="file" accept="audio/*" multiple onChange={e=>setFiles(Array.from(e.target.files||[]))}/>
           {files.length>0&&<small>{files.length} sample{files.length===1?"":"s"} selected · {Math.round(files.reduce((n,f)=>n+f.size,0)/1024/1024*10)/10} MB</small>}
@@ -150,7 +159,7 @@ export default function AudioPage(){
           <button className="primary" onClick={cloneVoice} disabled={cloneBusy}>{cloneBusy?"Cloning voice…":"Clone my voice"}</button>
           <div className="audioPreview">
             <label>MY VOICES</label>
-            {clonedVoices.length===0?<p>No cloned voices saved yet. Instant Voice Cloning requires an eligible ElevenLabs paid plan.</p>:
+            {clonedVoices.length===0?<p>No cloned voices saved yet. Voice cloning requires an eligible premium voice plan.</p>:
               <div>{clonedVoices.map(v=><div className="voiceRow" key={v.id}><strong>{v.name}</strong><span>{v.status}</span><button className="secondary" onClick={()=>setVoice(v.id)}>Use voice</button></div>)}</div>}
           </div>
           </div>
