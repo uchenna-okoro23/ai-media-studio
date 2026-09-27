@@ -388,9 +388,11 @@ export async function POST(request) {
     return Response.json(
       {
         error:
-          error instanceof Error
-            ? error.message
-            : "Generation failed. Please try again.",
+          type === "AI Video"
+            ? "Video generation failed. Please try again."
+            : error instanceof Error
+              ? error.message
+              : "Generation failed. Please try again.",
         id: generationId,
       },
       { status: 500 }
