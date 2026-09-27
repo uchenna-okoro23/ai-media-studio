@@ -7,7 +7,6 @@ export default function AudioPage(){
   const [voice,setVoice]=useState("");
   const [rate,setRate]=useState(1);
   const [speaking,setSpeaking]=useState(false);
-  const [samplePlaying,setSamplePlaying]=useState(false);
   const [mobileNav,setMobileNav]=useState(false);
   const [browserVoices,setBrowserVoices]=useState([]);
   const [clonedVoices,setClonedVoices]=useState([]);
@@ -24,7 +23,6 @@ export default function AudioPage(){
   const [previewUrl,setPreviewUrl]=useState("");
   const [savedVoiceovers,setSavedVoiceovers]=useState([]);
   const audioRef=useRef(null);
-  const sampleAudioRef=useRef(null);
 
   useEffect(()=>{
     const load=()=>setBrowserVoices(window.speechSynthesis.getVoices());
@@ -33,21 +31,11 @@ export default function AudioPage(){
     fetch("/api/voices").then(r=>r.ok?r.json():null).then(d=>d&&setClonedVoices(d.voices||[])).catch(()=>{});
     fetch("/api/audio/voices").then(r=>r.ok?r.json():null).then(d=>{if(d){setFreeVoices(d.voices||[]);setProviderConfigured(d.providerConfigured!==false);}}).catch(()=>{});
     fetch("/api/generations").then(r=>r.ok?r.json():null).then(d=>{if(d) setSavedVoiceovers((d.generations||[]).filter(g=>g.type==="AI Audio"&&g.status==="completed"));}).catch(()=>{});
-    return ()=>{window.speechSynthesis.onvoiceschanged=null;window.speechSynthesis.cancel();if(sampleAudioRef.current){sampleAudioRef.current.pause();sampleAudioRef.current.currentTime=0;}};
+    return ()=>{window.speechSynthesis.onvoiceschanged=null;window.speechSynthesis.cancel();};
   },[]);
-
-  function stopSample(){
-    if(sampleAudioRef.current){
-      sampleAudioRef.current.pause();
-      sampleAudioRef.current.currentTime=0;
-    }
-    setPreviewUrl("");
-    setSamplePlaying(false);
-  }
 
   function speak(){
     if(!text.trim()) return;
-    stopSample();
     window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text.trim());
     u.text=text.trim();
@@ -59,21 +47,6 @@ export default function AudioPage(){
     u.onend=()=>setSpeaking(false);
     u.onerror=()=>setSpeaking(false);
     window.speechSynthesis.speak(u);
-  }
-
-  function previewVoiceSample(){
-    const selected=freeVoices.find(v=>v.id===voice);
-    if(!selected?.preview_url) return;
-    window.speechSynthesis.cancel();
-    setSpeaking(false);
-    if(sampleAudioRef.current){
-      sampleAudioRef.current.pause();
-      sampleAudioRef.current.currentTime=0;
-      sampleAudioRef.current.src=selected.preview_url;
-      sampleAudioRef.current.play().catch(()=>{});
-    }
-    setPreviewUrl(selected.preview_url);
-    setSamplePlaying(true);
   }
 
   function stop(){
@@ -154,11 +127,9 @@ export default function AudioPage(){
           </div>
           <div className="actionRow">
             <button className="primary" onClick={speaking?stop:speak} disabled={!text.trim()||!voice}>{speaking?"Stop text test":"▶ Test my text"}</button>
-            <button className="secondary" onClick={previewVoiceSample} disabled={!voice||!freeVoices.some(v=>v.id===voice&&v.preview_url)}>{samplePlaying?"Replay voice sample":"Hear voice sample"}</button>
             <button className="secondary" onClick={generateVoiceover} disabled={generateBusy||!text.trim()||!voice}>{generateBusy?"Generating…":"Generate production voiceover"}</button>
-            <small>{text.length} characters · Text test reads only the text in the script box using your device speech engine. It does not play the voice sample, generate audio, or use your daily limit.</small>
+            <small>{text.length} characters · Text test reads only the text in the script box using your device speech engine. It does not generate audio or use your daily limit.</small>
           </div>
-          <audio ref={sampleAudioRef} onEnded={()=>setSamplePlaying(false)} style={{display:"none"}}/>
           {audioUrl&&<div style={{marginTop:18}}><label>GENERATED AUDIO</label><audio ref={audioRef} controls src={audioUrl} style={{width:"100%",marginTop:8}}/></div>}
           <div className="audioPreview" style={{marginTop:24}}>
             <label>SAVED VOICEOVERS</label>
