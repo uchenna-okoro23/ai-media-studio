@@ -4,14 +4,14 @@ import { generateMedia } from "@/lib/providers";
 
 const DAILY_LIMIT = 10;
 
-async function downloadGeneratedImage(url) {
+async function downloadGeneratedMedia(url) {
   const response = await fetch(url, {
     cache: "no-store",
   });
 
   if (!response.ok) {
     throw new Error(
-      `Could not download generated image from provider (${response.status}).`
+      `Could not download generated media from provider (${response.status}).`
     );
   }
 
@@ -21,7 +21,7 @@ async function downloadGeneratedImage(url) {
   const arrayBuffer = await response.arrayBuffer();
 
   if (!arrayBuffer.byteLength) {
-    throw new Error("Generated image was empty.");
+    throw new Error("Generated media was empty.");
   }
 
   return {
@@ -228,9 +228,9 @@ export async function POST(request) {
     let mediaData = null;
     let mediaMime = null;
 
-    if (type === "AI Image") {
+    if (type === "AI Image" || type === "AI Video") {
       try {
-        const downloaded = await downloadGeneratedImage(result.url);
+        const downloaded = await downloadGeneratedMedia(result.url);
 
         mediaData = downloaded.data;
         mediaMime = downloaded.mime;
@@ -254,7 +254,7 @@ export async function POST(request) {
         return Response.json(
           {
             error:
-              "The image was generated but could not be saved permanently.",
+              "The media was generated but could not be saved permanently.",
             id: generationId,
           },
           { status: 502 }
