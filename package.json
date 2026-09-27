@@ -17,7 +17,7 @@
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.1",
     "ffmpeg-static": "^5.2.0",
-    "@huggingface/inference": "^4.13.5"
+    "@huggingface/inference": "^4.13.30"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
