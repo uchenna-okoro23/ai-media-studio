@@ -1,8 +1,15 @@
 import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { generateMedia } from "@/lib/providers";
+import {
+  FREE_DAILY_GENERATIONS,
+  reserveGenerationCharge,
+  completeGenerationCharge,
+  refundGenerationCharge,
+  getGenerationPriceKobo,
+} from "@/lib/billing";
 
-const DAILY_LIMIT = 10;
+const DAILY_LIMIT = FREE_DAILY_GENERATIONS;
 
 async function downloadGeneratedMedia(url) {
   const response = await fetch(url, {
@@ -79,6 +86,7 @@ export async function POST(request) {
   const client = await pool.connect();
 
   let generationId = null;
+  let walletTransactionId = null;
 
   try {
     await client.query("BEGIN");
@@ -140,6 +148,28 @@ export async function POST(request) {
 
     generationId = generationResult.rows[0].id;
 
+    const billing = await reserveGenerationCharge(client, {
+      userId: user.sub,
+      generationId,
+      type,
+    });
+
+    if (billing.mode === "insufficient_balance") {
+      await client.query("ROLLBACK");
+
+      return Response.json(
+        {
+          error: "Insufficient AI Media Studio wallet balance.",
+          requiredNgn: billing.costKobo / 100,
+          balanceNgn: billing.balanceKobo / 100,
+          freeGenerations: DAILY_LIMIT,
+          message: "Fund your AI Media Studio wallet to continue generating after the free allowance.",
+        },
+        { status: 402 }
+      );
+    }
+
+    walletTransactionId = billing.transactionId || null;
     await client.query("COMMIT");
   } catch (error) {
     try {
@@ -179,6 +209,12 @@ export async function POST(request) {
         `,
         [generationId, user.sub]
       );
+
+      await refundGenerationCharge({
+        userId: user.sub,
+        generationId,
+        transactionId: walletTransactionId,
+      });
 
       return Response.json(
         {
