@@ -6,7 +6,6 @@ import {
   reserveGenerationCharge,
   completeGenerationCharge,
   refundGenerationCharge,
-  getGenerationPriceKobo,
 } from "@/lib/billing";
 
 const DAILY_LIMIT = FREE_DAILY_GENERATIONS;
@@ -105,6 +104,8 @@ export async function POST(request) {
         SELECT COUNT(*)::int AS count
         FROM generations
         WHERE user_id = $1
+          AND billing_mode = 'free'
+          AND status IN ('processing', 'completed')
           AND created_at >= CURRENT_DATE
           AND created_at < CURRENT_DATE + INTERVAL '1 day'
       `,
@@ -246,6 +247,12 @@ export async function POST(request) {
         [generationId, user.sub]
       );
 
+      await refundGenerationCharge({
+        userId: user.sub,
+        generationId,
+        transactionId: walletTransactionId,
+      });
+
       return Response.json(
         {
           error: "Generation did not complete.",
@@ -286,6 +293,12 @@ export async function POST(request) {
           `,
           [generationId, user.sub]
         );
+
+        await refundGenerationCharge({
+          userId: user.sub,
+          generationId,
+          transactionId: walletTransactionId,
+        });
 
         return Response.json(
           {
@@ -328,11 +341,15 @@ export async function POST(request) {
       ]
     );
 
+    await completeGenerationCharge(walletTransactionId);
+
     const usageResult = await pool.query(
       `
         SELECT COUNT(*)::int AS count
         FROM generations
         WHERE user_id = $1
+          AND billing_mode = 'free'
+          AND status IN ('processing', 'completed')
           AND created_at >= CURRENT_DATE
           AND created_at < CURRENT_DATE + INTERVAL '1 day'
       `,
@@ -382,6 +399,14 @@ export async function POST(request) {
         updateError
       );
     }
+
+    await refundGenerationCharge({
+      userId: user.sub,
+      generationId,
+      transactionId: walletTransactionId,
+    }).catch((refundError) =>
+      console.error("Wallet refund error:", refundError)
+    );
 
     return Response.json(
       {
