@@ -88,41 +88,36 @@ try {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    -- Repair historical usage charges left completed after a generation failed.
-    WITH refundable AS (
-      SELECT w.id, w.user_id, ABS(w.amount_kobo) AS refund_kobo
+  `);
+
+  const repairClient = await pool.connect();
+  try {
+    await repairClient.query("BEGIN");
+    const repairs = await repairClient.query(`
+      SELECT w.id AS transaction_id, w.user_id, w.amount_kobo, g.id AS generation_id
       FROM wallet_transactions w
       JOIN generations g ON g.wallet_transaction_id = w.id
       WHERE w.type = 'usage'
         AND w.status = 'completed'
         AND w.amount_kobo < 0
         AND g.status IN ('failed', 'provider_not_configured')
-    )
-    UPDATE users u
-    SET balance_kobo = u.balance_kobo + r.refund_kobo
-    FROM (
-      SELECT user_id, SUM(refund_kobo) AS refund_kobo
-      FROM refundable
-      GROUP BY user_id
-    ) r
-    WHERE u.id = r.user_id;
-
-    UPDATE wallet_transactions w
-    SET status = 'refunded'
-    FROM generations g
-    WHERE g.wallet_transaction_id = w.id
-      AND w.type = 'usage'
-      AND w.status = 'completed'
-      AND w.amount_kobo < 0
-      AND g.status IN ('failed', 'provider_not_configured');
-
-    UPDATE generations g
-    SET billing_mode = 'refunded'
-    FROM wallet_transactions w
-    WHERE g.wallet_transaction_id = w.id
-      AND w.status = 'refunded'
-      AND g.status IN ('failed', 'provider_not_configured');
-  `);
+      FOR UPDATE OF w
+    `);
+    for (const row of repairs.rows) {
+      const refund = Math.abs(Number(row.amount_kobo || 0));
+      if (!refund) continue;
+      await repairClient.query("UPDATE users SET balance_kobo = balance_kobo + $1 WHERE id = $2", [refund, row.user_id]);
+      await repairClient.query("UPDATE wallet_transactions SET status = 'refunded' WHERE id = $1 AND status = 'completed'", [row.transaction_id]);
+      await repairClient.query("UPDATE generations SET billing_mode = 'refunded' WHERE id = $1", [row.generation_id]);
+    }
+    await repairClient.query("COMMIT");
+    if (repairs.rowCount) console.log("Repaired " + repairs.rowCount + " historical failed usage charge(s).");
+  } catch (error) {
+    await repairClient.query("ROLLBACK");
+    throw error;
+  } finally {
+    repairClient.release();
+  }
 
   console.log("Database schema ready.");
 } finally {
