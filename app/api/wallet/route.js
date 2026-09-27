@@ -19,7 +19,6 @@ export async function GET() {
           type,
           amount_kobo,
           status,
-          provider,
           generation_id,
           created_at
         FROM wallet_transactions
