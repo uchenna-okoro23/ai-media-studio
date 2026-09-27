@@ -1,2 +1,0 @@
-import FeatureWorkspace from "../components/FeatureWorkspace";
-export default function Page(){return <FeatureWorkspace eyebrow="CREATE" title="AI Clone" description="Prepare a consent-based digital presenter workflow from authorized identity assets." features={["Identity assets","Voice workflow","Lip-sync video"]}/>}
