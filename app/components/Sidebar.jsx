@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 
 const sections = [
   { title: "HOME", items: [{ label: "Dashboard", href: "/" }] },
@@ -37,6 +38,16 @@ const sections = [
 
 export default function Sidebar({ mobileOpen = false, onNavigate }) {
   const pathname = usePathname();
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("ams_brand") || "{}");
+      const color = typeof saved.color === "string" && /^#[0-9a-f]{6}$/i.test(saved.color)
+        ? saved.color
+        : "#ffffff";
+      document.documentElement.style.setProperty("--brand-accent", color);
+    } catch {}
+  }, [pathname]);
 
   return (
     <aside className={`side ${mobileOpen ? "mobileOpen" : ""}`}>
