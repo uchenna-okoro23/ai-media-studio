@@ -1,24 +1,4 @@
 "use client";
-
-import { useState } from "react";
+import {useState} from "react";
 import Sidebar from "../components/Sidebar";
-
-export default function StoryboardPage() {
-  const [prompt,setPrompt]=useState("");
-  const [mobileNav,setMobileNav]=useState(false);
-
-  return <main className="shell">
-    <button className="mobileMenu" onClick={()=>setMobileNav(true)}>☰</button>
-    {mobileNav&&<div className="navBackdrop" onClick={()=>setMobileNav(false)}/>}
-    <Sidebar mobileOpen={mobileNav} onNavigate={()=>setMobileNav(false)}/>
-    <section className="content">
-      <header><div><label>CREATE</label><h1>Storyboard</h1><span>Plan scenes, shots and narrative beats.</span></div><a className="upgrade" href="/">Dashboard</a></header>
-      <div className="panel"><label>STORYBOARD FRAME</label><h2>Describe the shot</h2><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Scene 1: describe the subject, action, camera angle, lighting, mood and visual style..."/><div className="foot"><small>{prompt.length}/2000</small><button>✦ Generate frame</button></div></div>
-      <div className="cards">
-        <div className="card"><strong>Scene 1</strong><small>{prompt||"Add your first storyboard scene."}</small></div>
-        <div className="card"><strong>Scene 2</strong><small>Next scene placeholder</small></div>
-        <div className="card"><strong>Scene 3</strong><small>Next scene placeholder</small></div>
-      </div>
-    </section>
-  </main>;
-}
+export default function StoryboardPage(){const [scenes,setScenes]=useState([{title:"Hook",shot:"",duration:"5"},{title:"Context",shot:"",duration:"8"},{title:"Main point",shot:"",duration:"10"}]);const [mobileNav,setMobileNav]=useState(false);function update(i,k,v){setScenes(s=>s.map((x,n)=>n===i?{...x,[k]:v}:x))}function add(){setScenes(s=>[...s,{title:"New scene",shot:"",duration:"8"}])}return <main className="shell"><button className="mobileMenu" onClick={()=>setMobileNav(true)}>☰</button>{mobileNav&&<div className="navBackdrop" onClick={()=>setMobileNav(false)}/>}<Sidebar mobileOpen={mobileNav} onNavigate={()=>setMobileNav(false)}/><section className="content"><header><div><label>PRODUCTION · PLANNING</label><h1>Storyboard</h1><span>Build the shot list before spending credits on generation.</span></div><a className="upgrade" href="/video">Create video</a></header><div className="storyboardTop"><div><strong>{scenes.length} scenes</strong><span>{scenes.reduce((n,x)=>n+Number(x.duration||0),0)} sec planned</span></div><button onClick={add}>+ Add scene</button></div><div className="storyboardList">{scenes.map((s,i)=><article className="storyRow" key={i}><div className="shotNumber">{String(i+1).padStart(2,"0")}</div><div className="shotFields"><input value={s.title} onChange={e=>update(i,"title",e.target.value)} placeholder="Scene title"/><textarea value={s.shot} onChange={e=>update(i,"shot",e.target.value)} placeholder="Describe subject, action, camera, lighting and dialogue..."/><div><label>Duration <input className="smallField" value={s.duration} onChange={e=>update(i,"duration",e.target.value)}/> sec</label><a href="/scenes">Generate visual →</a></div></div><div className="shotPreview"><span>{s.shot?"SHOT READY":"NO FRAME"}</span></div></article>)}</div></section></main>}
