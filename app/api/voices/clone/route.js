@@ -54,7 +54,7 @@ export async function POST(request) {
     if (file.type && !ALLOWED_TYPES.has(file.type)) {
       return Response.json({ error: "Unsupported audio format. Use MP3, WAV, M4A, OGG, or WebM." }, { status: 400 });
     }
-    outbound.append("files[]", file, file.name || "voice-sample");
+    outbound.append("files", file, file.name || "voice-sample");
   }
 
   try {
