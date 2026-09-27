@@ -14,9 +14,14 @@ export async function GET() {
     const data = await response.json();
     const voices = (data.voices || [])
       .filter(v => v.voice_id && (!Array.isArray(v.available_for_tiers) || v.available_for_tiers.length === 0 || v.available_for_tiers.includes("free")))
-      .map(v => ({ id: v.voice_id, name: v.name, description: v.description || "Premade narration voice", preview_url: v.preview_url || null }));
+      .map(v => ({
+        id: v.voice_id,
+        name: v.name,
+        description: v.description || "Premade narration voice",
+      }));
     return Response.json({ voices, providerConfigured: true });
-  } catch {
+  } catch (error) {
+    console.error("Voice catalog error:", error);
     return Response.json({ voices: [], providerConfigured: true });
   }
 }
