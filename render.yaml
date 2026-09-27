@@ -13,16 +13,24 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      - key: IMAGE_PROVIDER_API_KEY
+      - key: REPLICATE_API_TOKEN
         sync: false
-      - key: IMAGE_PROVIDER_URL
-        value: https://api.openai.com/v1/images/generations
-      - key: IMAGE_MODEL
+      - key: HF_TOKEN
         sync: false
-      - key: VIDEO_PROVIDER_API_KEY
+      - key: HF_VIDEO_MODEL
+        value: Wan-AI/Wan2.1-T2V-1.3B
+      - key: ELEVENLABS_API_KEY
         sync: false
-      - key: VIDEO_MODEL_VERSION
+      - key: PAYSTACK_SECRET_KEY
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: APP_URL
+        value: https://ai-media-studio-edt4.onrender.com
       - key: VIDEO_ASPECT_RATIO
         value: 16:9
       - key: VIDEO_SECONDS
