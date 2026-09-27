@@ -1,236 +1,369 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Sidebar from "@/app/components/Sidebar";
+
+const DEFAULT_CLIP = {
+  id: "clip-1",
+  name: "Main clip",
+  start: 0,
+  end: 0,
+  duration: 0,
+  file: null,
+  url: "",
+};
+
+function formatTime(value) {
+  const seconds = Math.max(0, Number(value) || 0);
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
 
 export default function Editor() {
-  const video = useRef(null);
-  const canvas = useRef(null);
-  const [src, setSrc] = useState("");
-  const [mediaKind, setMediaKind] = useState("video");
-  const [start, setStart] = useState(0);
-  const [end, setEnd] = useState(0);
+  const videoRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [clips, setClips] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [playing, setPlaying] = useState(false);
   const [caption, setCaption] = useState("");
   const [filter, setFilter] = useState("none");
-  const [playing, setPlaying] = useState(false);
+  const [aspect, setAspect] = useState("16:9");
+  const [rendering, setRendering] = useState(false);
+  const [renderedUrl, setRenderedUrl] = useState("");
+  const [error, setError] = useState("");
+
+  const selected = clips.find((clip) => clip.id === selectedId) || null;
+
+  const totalDuration = useMemo(
+    () => clips.reduce((sum, clip) => sum + Math.max(0, clip.end - clip.start), 0),
+    [clips]
+  );
 
   useEffect(() => {
     return () => {
-      if (src) URL.revokeObjectURL(src);
+      clips.forEach((clip) => clip.url && URL.revokeObjectURL(clip.url));
     };
-  }, [src]);
+  }, []);
 
-  function load(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (src) URL.revokeObjectURL(src);
-    setSrc(URL.createObjectURL(file));
-    setMediaKind(file.type.startsWith("image/") ? "image" : "video");
-    setStart(0);
-    setEnd(0);
+  useEffect(() => {
+    if (!selected || !videoRef.current) return;
+    videoRef.current.src = selected.url;
+    videoRef.current.currentTime = selected.start || 0;
+    videoRef.current.load();
     setPlaying(false);
+  }, [selectedId]);
+
+  function addFiles(event) {
+    const files = Array.from(event.target.files || []).filter((file) =>
+      file.type.startsWith("video/")
+    );
+    if (!files.length) return;
+
+    const next = files.map((file, index) => ({
+      id: `${Date.now()}-${index}`,
+      name: file.name,
+      start: 0,
+      end: 0,
+      duration: 0,
+      file,
+      url: URL.createObjectURL(file),
+    }));
+
+    setClips((current) => [...current, ...next]);
+    if (!selectedId) setSelectedId(next[0].id);
+    event.target.value = "";
+    setError("");
   }
 
-  function ready() {
-    if (!video.current) return;
-    const duration = video.current.duration || 0;
-    setEnd(duration);
-    video.current.currentTime = 0;
+  function metadataLoaded() {
+    const duration = videoRef.current?.duration || 0;
+    setClips((current) =>
+      current.map((clip) =>
+        clip.id === selectedId
+          ? { ...clip, duration, end: clip.end > 0 ? Math.min(clip.end, duration) : duration }
+          : clip
+      )
+    );
   }
 
-  function play() {
-    if (!video.current) return;
+  function updateClip(id, patch) {
+    setClips((current) =>
+      current.map((clip) => (clip.id === id ? { ...clip, ...patch } : clip))
+    );
+  }
+
+  function removeClip(id) {
+    const target = clips.find((clip) => clip.id === id);
+    if (target?.url) URL.revokeObjectURL(target.url);
+
+    const next = clips.filter((clip) => clip.id !== id);
+    setClips(next);
+    if (selectedId === id) setSelectedId(next[0]?.id || null);
+  }
+
+  function moveClip(id, direction) {
+    setClips((current) => {
+      const index = current.findIndex((clip) => clip.id === id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const copy = [...current];
+      [copy[index], copy[target]] = [copy[target], copy[index]];
+      return copy;
+    });
+  }
+
+  function playSelected() {
+    const video = videoRef.current;
+    if (!video || !selected) return;
 
     if (playing) {
-      video.current.pause();
+      video.pause();
       setPlaying(false);
       return;
     }
 
-    video.current.play();
+    video.currentTime = Math.max(selected.start, 0);
+    video.play();
     setPlaying(true);
   }
 
-  function seekStart(value) {
-    const next = Number(value);
-    setStart(next);
-    if (video.current) video.current.currentTime = next;
-  }
-
-  function seekEnd(value) {
-    setEnd(Number(value));
-  }
-
-  function handleTimeUpdate() {
-    if (!video.current || !end) return;
-
-    if (video.current.currentTime >= end) {
-      video.current.pause();
-      video.current.currentTime = end;
+  function onTimeUpdate() {
+    if (!videoRef.current || !selected) return;
+    if (videoRef.current.currentTime >= selected.end) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = selected.end;
       setPlaying(false);
     }
   }
 
-  function videoFilter() {
-    if (filter === "grayscale") return "grayscale(1)";
-    if (filter === "contrast") return "contrast(1.25)";
-    return "none";
+  function seek(value) {
+    if (!videoRef.current || !selected) return;
+    const next = Number(value);
+    videoRef.current.currentTime = next;
   }
 
-  function snapshot() {
-    if (!canvas.current) return;
+  async function exportProject() {
+    setError("");
+    setRenderedUrl("");
 
-    const canvasElement = canvas.current;
-    const media = video.current || document.querySelector(".stage img");
-    if (!media) return;
-    canvasElement.width = media.videoWidth || media.naturalWidth || 1280;
-    canvasElement.height = media.videoHeight || media.naturalHeight || 720;
-
-    const context = canvasElement.getContext("2d");
-    if (!context) return;
-
-    context.filter = videoFilter();
-    context.drawImage(
-      media,
-      0,
-      0,
-      canvasElement.width,
-      canvasElement.height
-    );
-
-    if (caption) {
-      context.filter = "none";
-      context.font = "bold 42px sans-serif";
-      context.textAlign = "center";
-      context.fillStyle = "white";
-      context.strokeStyle = "black";
-      context.lineWidth = 6;
-
-      const x = canvasElement.width / 2;
-      const y = canvasElement.height - 60;
-
-      context.strokeText(caption, x, y);
-      context.fillText(caption, x, y);
+    if (!clips.length) {
+      setError("Add at least one video clip.");
+      return;
     }
 
-    const link = document.createElement("a");
-    link.download = "ai-media-editor-frame.png";
-    link.href = canvasElement.toDataURL("image/png");
-    link.click();
+    if (clips.some((clip) => !clip.file || clip.end <= clip.start)) {
+      setError("Every clip needs a valid trim range.");
+      return;
+    }
+
+    setRendering(true);
+
+    try {
+      const form = new FormData();
+      form.append("caption", caption);
+      form.append("filter", filter);
+      form.append("aspect", aspect);
+
+      clips.forEach((clip) => {
+        form.append("clips", clip.file, clip.name);
+        form.append("starts", String(clip.start));
+        form.append("ends", String(clip.end));
+      });
+
+      const response = await fetch("/api/editor/render", {
+        method: "POST",
+        body: form,
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Export failed.");
+
+      setRenderedUrl(data.url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed.");
+    } finally {
+      setRendering(false);
+    }
   }
 
+  const filterCss =
+    filter === "grayscale"
+      ? "grayscale(1)"
+      : filter === "contrast"
+        ? "contrast(1.2)"
+        : "none";
+
   return (
-    <main className="editorShell">
-      <header className="editorHeader">
-        <div>
-          <label>AI EDITOR</label>
-          <h1>Build your edit</h1>
-          <span>
-            Trim, preview, style and caption media directly in your browser.
-          </span>
-        </div>
-        <a href="/">Back to Studio</a>
-      </header>
+    <div className="shell">
+      <Sidebar />
+      <main className="content editorPage">
+        <header>
+          <div>
+            <label>PRODUCTION / AI EDITOR</label>
+            <h1>Build your edit</h1>
+            <span>Assemble clips, trim the timeline, style the picture and export an MP4.</span>
+          </div>
+          <div className="editorTopActions">
+            <button className="secondaryAction" onClick={() => fileInputRef.current?.click()}>
+              + Add clips
+            </button>
+            <button className="primaryAction" onClick={exportProject} disabled={rendering || !clips.length}>
+              {rendering ? "Rendering…" : "Export MP4"}
+            </button>
+          </div>
+        </header>
 
-      <section className="editorGrid">
-        <div className="editorPanel">
-          <input
-            type="file"
-            accept="video/*,image/*"
-            onChange={load}
-          />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/*"
+          multiple
+          hidden
+          onChange={addFiles}
+        />
 
-          {src ? (
-            <>
-              <div className="stage">
-                {mediaKind === "image" ? (
-                  <img src={src} alt="Uploaded media" style={{ display: "block", width: "100%", maxHeight: "65vh", objectFit: "contain", filter: videoFilter() }} />
-                ) : (
-                  <video
-                    ref={video}
-                    src={src}
-                    onLoadedMetadata={ready}
-                    onTimeUpdate={handleTimeUpdate}
-                    style={{ filter: videoFilter() }}
-                    controls
-                  />
-                )}
+        <section className="editorWorkspace">
+          <div className="editorStagePanel">
+            <div className="editorStageToolbar">
+              <span>{clips.length} clip{clips.length === 1 ? "" : "s"} · {formatTime(totalDuration)}</span>
+              <div>
+                {["16:9", "9:16", "1:1", "4:5"].map((value) => (
+                  <button
+                    key={value}
+                    className={aspect === value ? "active" : ""}
+                    onClick={() => setAspect(value)}
+                  >
+                    {value}
+                  </button>
+                ))}
               </div>
-
-              <div className="controls">
-                <button onClick={play}>
-                  {playing ? "Pause" : "Play"}
-                </button>
-
-                <label>
-                  Start
-                  <input
-                    type="number"
-                    min="0"
-                    max={end}
-                    step="0.1"
-                    value={start}
-                    onChange={(event) => seekStart(event.target.value)}
-                  />
-                </label>
-
-                <label>
-                  End
-                  <input
-                    type="number"
-                    min={start}
-                    max={video.current?.duration || end || 0}
-                    step="0.1"
-                    value={end}
-                    onChange={(event) => seekEnd(event.target.value)}
-                  />
-                </label>
-              </div>
-            </>
-          ) : (
-            <div className="emptyEditor">
-              Upload a video or image to start editing.
             </div>
-          )}
-        </div>
 
-        <aside className="editorPanel">
-          <label>EDIT</label>
+            <div className="editorStage">
+              {selected ? (
+                <video
+                  ref={videoRef}
+                  src={selected.url}
+                  onLoadedMetadata={metadataLoaded}
+                  onTimeUpdate={onTimeUpdate}
+                  onEnded={() => setPlaying(false)}
+                  style={{ filter: filterCss }}
+                  playsInline
+                />
+              ) : (
+                <div className="editorEmptyStage">
+                  <strong>Start your YouTube edit</strong>
+                  <span>Add two or more clips to build a sequence.</span>
+                  <button className="primaryAction" onClick={() => fileInputRef.current?.click()}>
+                    Add video clips
+                  </button>
+                </div>
+              )}
+              {selected && caption && <div className="editorCaptionOverlay">{caption}</div>}
+            </div>
 
-          <h2>Caption</h2>
-          <input
-            value={caption}
-            onChange={(event) => setCaption(event.target.value)}
-            placeholder="Add a caption overlay"
-          />
+            {selected && (
+              <div className="editorTransport">
+                <button onClick={playSelected}>{playing ? "Pause" : "Play"}</button>
+                <input
+                  type="range"
+                  min={selected.start}
+                  max={selected.end}
+                  step="0.05"
+                  value={Math.min(Math.max(videoRef.current?.currentTime || selected.start, selected.start), selected.end)}
+                  onChange={(event) => seek(event.target.value)}
+                />
+                <span>{formatTime(videoRef.current?.currentTime || selected.start)} / {formatTime(selected.end)}</span>
+              </div>
+            )}
+          </div>
 
-          <h2>Filter</h2>
-          <select
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          >
-            <option value="none">Original</option>
-            <option value="grayscale">Grayscale</option>
-            <option value="contrast">High contrast</option>
-          </select>
+          <aside className="editorInspector">
+            <div className="editorInspectorSection">
+              <label>CLIP</label>
+              {selected ? (
+                <>
+                  <strong className="editorFileName">{selected.name}</strong>
+                  <div className="trimFields">
+                    <label>Start<input type="number" min="0" max={selected.duration} step="0.1" value={selected.start} onChange={(e) => updateClip(selected.id, { start: Math.min(Number(e.target.value), selected.end - 0.1) })} /></label>
+                    <label>End<input type="number" min={selected.start + 0.1} max={selected.duration} step="0.1" value={selected.end} onChange={(e) => updateClip(selected.id, { end: Math.max(Number(e.target.value), selected.start + 0.1) })} /></label>
+                  </div>
+                </>
+              ) : <span className="mutedText">Select a clip on the timeline.</span>}
+            </div>
 
-          <h2>Export</h2>
-          <button
-            className="primary"
-            disabled={!src}
-            onClick={snapshot}
-          >
-            Export current frame
-          </button>
+            <div className="editorInspectorSection">
+              <label>STYLE</label>
+              <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+                <option value="none">Original</option>
+                <option value="contrast">Cinematic contrast</option>
+                <option value="grayscale">Grayscale</option>
+              </select>
+              <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption overlay" />
+            </div>
 
-          <p>
-            Frame export is lossless PNG. Video trim/export can be extended
-            with server-side FFmpeg storage in the next production phase.
-          </p>
-        </aside>
-      </section>
+            <div className="editorInspectorSection">
+              <label>CLIPS</label>
+              <div className="clipList">
+                {clips.map((clip, index) => (
+                  <div key={clip.id} className={clip.id === selectedId ? "clipItem selected" : "clipItem"}>
+                    <button className="clipSelect" onClick={() => setSelectedId(clip.id)}>
+                      <span>{String(index + 1).padStart(2, "0")}</span>
+                      <strong>{clip.name}</strong>
+                    </button>
+                    <div className="clipActions">
+                      <button onClick={() => moveClip(clip.id, -1)} disabled={index === 0}>↑</button>
+                      <button onClick={() => moveClip(clip.id, 1)} disabled={index === clips.length - 1}>↓</button>
+                      <button onClick={() => removeClip(clip.id)}>×</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </section>
 
-      <canvas ref={canvas} hidden />
-    </main>
+        <section className="editorTimelinePanel">
+          <div className="timelineHeader">
+            <div><label>TIMELINE</label><span>Drag order with ↑ ↓. Trim each source in the inspector.</span></div>
+            <span>{formatTime(totalDuration)} total</span>
+          </div>
+          <div className="timelineRuler">
+            <span>0:00</span><span>0:15</span><span>0:30</span><span>0:45</span><span>1:00</span>
+          </div>
+          <div className="timelineTrack">
+            {clips.map((clip, index) => {
+              const width = Math.max(12, ((clip.end - clip.start) / Math.max(totalDuration, 1)) * 100);
+              return (
+                <button
+                  key={clip.id}
+                  className={clip.id === selectedId ? "timelineClip selected" : "timelineClip"}
+                  style={{ width: `${width}%` }}
+                  onClick={() => setSelectedId(clip.id)}
+                >
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <strong>{clip.name}</strong>
+                  <small>{formatTime(clip.end - clip.start)}</small>
+                </button>
+              );
+            })}
+            {!clips.length && <div className="timelineEmpty">Your clips will appear here.</div>}
+          </div>
+        </section>
+
+        {error && <div className="notice editorNotice">{error}</div>}
+        {renderedUrl && (
+          <section className="editorExportResult">
+            <div>
+              <label>EXPORT READY</label>
+              <strong>Your MP4 is ready.</strong>
+              <span>Download it or continue to your YouTube project.</span>
+            </div>
+            <a className="primaryAction" href={renderedUrl} download="ai-media-studio-export.mp4">Download MP4</a>
+          </section>
+        )}
+      </main>
+    </div>
   );
 }
