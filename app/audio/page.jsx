@@ -21,6 +21,7 @@ export default function AudioPage(){
   const [error,setError]=useState("");
   const [audioUrl,setAudioUrl]=useState("");
   const [previewUrl,setPreviewUrl]=useState("");
+  const [savedVoiceovers,setSavedVoiceovers]=useState([]);
   const audioRef=useRef(null);
 
   useEffect(()=>{
@@ -29,6 +30,7 @@ export default function AudioPage(){
     window.speechSynthesis.onvoiceschanged=load;
     fetch("/api/voices").then(r=>r.ok?r.json():null).then(d=>d&&setClonedVoices(d.voices||[])).catch(()=>{});
     fetch("/api/audio/voices").then(r=>r.ok?r.json():null).then(d=>{if(d){setFreeVoices(d.voices||[]);setProviderConfigured(d.providerConfigured!==false);}}).catch(()=>{});
+    fetch("/api/generations").then(r=>r.ok?r.json():null).then(d=>{if(d) setSavedVoiceovers((d.generations||[]).filter(g=>g.type==="AI Audio"&&g.status==="completed"));}).catch(()=>{});
     return ()=>{window.speechSynthesis.onvoiceschanged=null;};
   },[]);
 
@@ -94,12 +96,11 @@ export default function AudioPage(){
       const data=await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(data.error||"Audio generation failed.");
       setAudioUrl(data.url);
-      setMessage(`Voiceover generated. ${data.usage?.remaining ?? "—"} daily generations remaining.`);
+      setSavedVoiceovers(items=>[{id:data.id,type:"AI Audio",prompt:text,status:"completed",created_at:new Date().toISOString()},...items.filter(item=>item.id!==data.id)]);
+      setMessage(`Voiceover generated and saved. ${data.usage?.remaining ?? "—"} daily generations remaining.`);
     }catch(e){setError(e.message||"Audio generation failed.");}
     finally{setGenerateBusy(false);}
   }
-
-  const selectedCloned=clonedVoices.find(v=>v.id===voice);
 
   return <main className="shell">
     <button className="mobileMenu" onClick={()=>setMobileNav(true)}>☰</button>
@@ -140,6 +141,16 @@ export default function AudioPage(){
           </div>
           {audioUrl&&<div style={{marginTop:18}}><label>GENERATED AUDIO</label><audio ref={audioRef} controls src={audioUrl} style={{width:"100%",marginTop:8}}/></div>}
           {previewUrl&&<audio autoPlay src={previewUrl} onEnded={()=>setSpeaking(false)} style={{display:"none"}}/>}
+          <div className="audioPreview" style={{marginTop:24}}>
+            <label>SAVED VOICEOVERS</label>
+            <h3>Your generated previews</h3>
+            {savedVoiceovers.length===0 ? <p>No generated voiceovers saved yet. Generate a production voiceover and it will remain available here after you refresh the page.</p> :
+              <div>{savedVoiceovers.slice(0,8).map(item=><div className="voiceRow" key={item.id} style={{display:"block",padding:"14px 0"}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center"}}><strong>{new Date(item.created_at).toLocaleString()}</strong><span>{item.prompt?.length||0} characters</span></div>
+                <p style={{margin:"8px 0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{item.prompt}</p>
+                <audio controls preload="none" src={`/api/generations/${item.id}/media`} style={{width:"100%"}} />
+              </div>)}</div>}
+          </div>
         </section>
 
         <section className="panel">
