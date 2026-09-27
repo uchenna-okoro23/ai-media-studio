@@ -60,6 +60,23 @@ try {
 
     CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_created
       ON wallet_transactions(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS voice_clones (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      provider_voice_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ready',
+      consent_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_voice_clones_provider_voice
+      ON voice_clones(provider, provider_voice_id);
+
+    CREATE INDEX IF NOT EXISTS idx_voice_clones_user_created
+      ON voice_clones(user_id, created_at DESC);
   `);
 
   console.log("Database schema ready.");
