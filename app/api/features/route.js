@@ -1,5 +1,3 @@
-import { providerStatus } from "@/lib/providers";
-
 export async function GET() {
   return Response.json({
     service: "ai-media-studio",
@@ -12,6 +10,5 @@ export async function GET() {
       history: true,
       authentication: true,
     },
-    providers: providerStatus(),
   });
 }
