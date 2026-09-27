@@ -115,6 +115,13 @@ try {
       AND w.status = 'completed'
       AND w.amount_kobo < 0
       AND g.status IN ('failed', 'provider_not_configured');
+
+    UPDATE generations g
+    SET billing_mode = 'refunded'
+    FROM wallet_transactions w
+    WHERE g.wallet_transaction_id = w.id
+      AND w.status = 'refunded'
+      AND g.status IN ('failed', 'provider_not_configured');
   `);
 
   console.log("Database schema ready.");
