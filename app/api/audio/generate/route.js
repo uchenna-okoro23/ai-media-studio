@@ -5,16 +5,6 @@ const DAILY_LIMIT = 10;
 const MAX_TEXT = 12000;
 
 async function resolveVoice(voiceId, userId, apiKey) {
-  const BUILTIN_VOICES = new Map([
-    ["21m00Tcm4TlvDq8ikWAM", "Rachel"],
-    ["AZnzlk1XvdvUeBnXmlld", "Domi"],
-    ["TxGEqnHWrfWFTfGW9XjX", "Josh"],
-  ]);
-
-  if (BUILTIN_VOICES.has(voiceId)) {
-    return { provider_voice_id: voiceId, name: BUILTIN_VOICES.get(voiceId), type: "builtin" };
-  }
-
   // Voice catalog IDs are provider voice IDs, not UUIDs from our database.
   // Validate them against the provider catalog before using them.
   try {
