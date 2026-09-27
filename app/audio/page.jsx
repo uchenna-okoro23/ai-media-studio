@@ -55,7 +55,7 @@ export default function AudioPage(){
       files.forEach(file=>form.append("files",file,file.name));
       const res=await fetch("/api/voices/clone",{method:"POST",body:form});
       const data=await res.json().catch(()=>({}));
-      if(!res.ok) throw new Error(data.error||"Voice cloning failed.");
+      if(!res.ok) throw new Error(typeof data.error==="string"?data.error:"Voice cloning failed. Please check the uploaded audio and try again.");
       setClonedVoices(v=>[data.voice,...v]);
       setVoice(data.voice.id);
       setName("");setFiles([]);setConsent(false);
