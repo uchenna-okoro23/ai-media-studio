@@ -104,8 +104,10 @@ export default function AudioPage(){
           <div className="controlRow">
             <label>Production voice
               <select value={voice} onChange={e=>setVoice(e.target.value)}>
-                <option value="">Select cloned voice</option>
-                {clonedVoices.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
+                <option value="">Select a voice</option>
+                {freeVoices.map(v=><option key={v.id} value={v.id}>{v.name} · Free</option>)}
+                {clonedVoices.length>0&&<option disabled>— Your clones —</option>}
+                {clonedVoices.map(v=><option key={v.id} value={v.id}>{v.name} · Clone</option>)}
               </select>
             </label>
             <label>Browser preview
@@ -123,7 +125,14 @@ export default function AudioPage(){
         </section>
 
         <section className="panel">
-          <label>VOICE LAB</label><h2>Clone a voice</h2>
+          <label>FREE PREMADE VOICES</label><h2>Generate with free voices</h2>
+          <p>Use an available ElevenLabs premade voice for YouTube narration. Choose one above, write your script, then generate the production voiceover.</p>
+          <div className="voiceGrid">
+            {freeVoices.length===0?<p>Loading available voices…</p>:freeVoices.map(v=><button type="button" className={voice===v.id?"voiceCard selected":"voiceCard"} key={v.id} onClick={()=>setVoice(v.id)}><strong>{v.name}</strong><span>{v.description||"Premade narration voice"}</span></button>)}
+          </div>
+          {!providerConfigured&&<small>Voice provider is not configured on the server. Browser preview is still available.</small>}
+          <div className="cloneBox">
+          <label>YOUR VOICE CLONE</label><h3>Clone your own voice</h3>
           <p>Upload a clean recording. ElevenLabs recommends about 1–2 minutes of clear audio for Instant Voice Cloning. Keep the recording to one speaker with minimal background noise.</p>
           <input className="textInput" value={name} onChange={e=>setName(e.target.value)} placeholder="Voice name"/>
           <input id="voiceFiles" className="textInput" type="file" accept="audio/*" multiple onChange={e=>setFiles(Array.from(e.target.files||[]))}/>
@@ -132,8 +141,9 @@ export default function AudioPage(){
           <button className="primary" onClick={cloneVoice} disabled={cloneBusy}>{cloneBusy?"Cloning voice…":"Clone my voice"}</button>
           <div className="audioPreview">
             <label>MY VOICES</label>
-            {clonedVoices.length===0?<p>No cloned voices saved yet.</p>:
+            {clonedVoices.length===0?<p>No cloned voices saved yet. Instant Voice Cloning requires an eligible ElevenLabs paid plan.</p>:
               <div>{clonedVoices.map(v=><div className="voiceRow" key={v.id}><strong>{v.name}</strong><span>{v.status}</span><button className="secondary" onClick={()=>setVoice(v.id)}>Use voice</button></div>)}</div>}
+          </div>
           </div>
         </section>
       </div>
