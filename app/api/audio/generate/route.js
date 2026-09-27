@@ -4,6 +4,52 @@ import { getSessionUser } from "@/lib/auth";
 const DAILY_LIMIT = 10;
 const MAX_TEXT = 12000;
 
+async function resolveVoice(voiceId, userId, apiKey) {
+  const BUILTIN_VOICES = new Map([
+    ["21m00Tcm4TlvDq8ikWAM", "Rachel"],
+    ["AZnzlk1XvdvUeBnXmlld", "Domi"],
+    ["TxGEqnHWrfWFTfGW9XjX", "Josh"],
+  ]);
+
+  if (BUILTIN_VOICES.has(voiceId)) {
+    return { provider_voice_id: voiceId, name: BUILTIN_VOICES.get(voiceId), type: "builtin" };
+  }
+
+  // Voice catalog IDs are provider voice IDs, not UUIDs from our database.
+  // Validate them against the provider catalog before using them.
+  try {
+    const response = await fetch("https://api.elevenlabs.io/v2/voices?page_size=100&voice_type=default", {
+      headers: { "xi-api-key": apiKey, Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const catalogVoice = Array.isArray(data.voices)
+        ? data.voices.find((item) => item.voice_id === voiceId)
+        : null;
+      if (catalogVoice) {
+        return {
+          provider_voice_id: catalogVoice.voice_id,
+          name: catalogVoice.name || "Production Voice",
+          type: "catalog",
+        };
+      }
+    }
+  } catch (error) {
+    console.error("Voice catalog lookup error:", error);
+  }
+
+  // Otherwise it may be one of the user's saved voice-clone database UUIDs.
+  const voiceResult = await db().query(
+    `SELECT id, name, provider_voice_id
+     FROM voice_clones
+     WHERE id = $1 AND user_id = $2 AND provider = 'elevenlabs' AND status = 'ready'
+     LIMIT 1`,
+    [voiceId, userId]
+  );
+  return voiceResult.rows[0] ? { ...voiceResult.rows[0], type: "clone" } : null;
+}
+
 export async function POST(request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
@@ -23,25 +69,7 @@ export async function POST(request) {
   if (text.length > MAX_TEXT) return Response.json({ error: `Narration is limited to ${MAX_TEXT.toLocaleString()} characters per generation.` }, { status: 400 });
   if (!voiceId) return Response.json({ error: "Select a voice." }, { status: 400 });
 
-  const BUILTIN_VOICES = new Map([
-    ["21m00Tcm4TlvDq8ikWAM", "Rachel"],
-    ["AZnzlk1XvdvUeBnXmlld", "Domi"],
-    ["TxGEqnHWrfWFTfGW9XjX", "Josh"],
-  ]);
-
-  let voice = null;
-  if (BUILTIN_VOICES.has(voiceId)) {
-    voice = { provider_voice_id: voiceId, name: BUILTIN_VOICES.get(voiceId), type: "builtin" };
-  } else {
-    const voiceResult = await db().query(
-      `SELECT id, name, provider_voice_id
-       FROM voice_clones
-       WHERE id = $1 AND user_id = $2 AND provider = 'elevenlabs' AND status = 'ready'
-       LIMIT 1`,
-      [voiceId, user.sub]
-    );
-    voice = voiceResult.rows[0] ? { ...voiceResult.rows[0], type: "clone" } : null;
-  }
+  const voice = await resolveVoice(voiceId, user.sub, apiKey);
   if (!voice) return Response.json({ error: "Voice not found." }, { status: 404 });
 
   const pool = db();
@@ -90,7 +118,7 @@ export async function POST(request) {
 
     if (!upstream.ok) {
       const errorBody = await upstream.text().catch(() => "");
-      console.error("ElevenLabs TTS error:", upstream.status, errorBody);
+      console.error("Audio TTS provider error:", upstream.status, errorBody);
       throw new Error("The voice provider could not generate the narration.");
     }
 
