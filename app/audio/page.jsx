@@ -7,6 +7,7 @@ export default function AudioPage(){
   const [voice,setVoice]=useState("");
   const [rate,setRate]=useState(1);
   const [speaking,setSpeaking]=useState(false);
+  const [samplePlaying,setSamplePlaying]=useState(false);
   const [mobileNav,setMobileNav]=useState(false);
   const [browserVoices,setBrowserVoices]=useState([]);
   const [clonedVoices,setClonedVoices]=useState([]);
@@ -23,6 +24,7 @@ export default function AudioPage(){
   const [previewUrl,setPreviewUrl]=useState("");
   const [savedVoiceovers,setSavedVoiceovers]=useState([]);
   const audioRef=useRef(null);
+  const sampleAudioRef=useRef(null);
 
   useEffect(()=>{
     const load=()=>setBrowserVoices(window.speechSynthesis.getVoices());
@@ -31,22 +33,27 @@ export default function AudioPage(){
     fetch("/api/voices").then(r=>r.ok?r.json():null).then(d=>d&&setClonedVoices(d.voices||[])).catch(()=>{});
     fetch("/api/audio/voices").then(r=>r.ok?r.json():null).then(d=>{if(d){setFreeVoices(d.voices||[]);setProviderConfigured(d.providerConfigured!==false);}}).catch(()=>{});
     fetch("/api/generations").then(r=>r.ok?r.json():null).then(d=>{if(d) setSavedVoiceovers((d.generations||[]).filter(g=>g.type==="AI Audio"&&g.status==="completed"));}).catch(()=>{});
-    return ()=>{window.speechSynthesis.onvoiceschanged=null;};
+    return ()=>{window.speechSynthesis.onvoiceschanged=null;window.speechSynthesis.cancel();if(sampleAudioRef.current){sampleAudioRef.current.pause();sampleAudioRef.current.currentTime=0;}};
   },[]);
+
+  function stopSample(){
+    if(sampleAudioRef.current){
+      sampleAudioRef.current.pause();
+      sampleAudioRef.current.currentTime=0;
+    }
+    setPreviewUrl("");
+    setSamplePlaying(false);
+  }
 
   function speak(){
     if(!text.trim()) return;
-    setPreviewUrl("");
+    stopSample();
     window.speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(text);
+    const u=new SpeechSynthesisUtterance(text.trim());
+    u.text=text.trim();
     u.rate=Number(rate);
-    const selected=freeVoices.find(v=>v.id===voice);
-    const selectedName=selected?.name||clonedVoices.find(v=>v.id===voice)?.name||"";
-    const lower=selectedName.toLowerCase();
-    const v=browserVoices.find(x=>{
-      const n=x.name.toLowerCase();
-      return n===lower || n.includes(lower) || lower.includes(n);
-    }) || browserVoices.find(x=>/english|en-us|en-gb|google|microsoft/i.test(x.name));
+    u.lang="en-US";
+    const v=browserVoices.find(x=>/^en(-|_)/i.test(x.lang)) || browserVoices.find(x=>/english|en-us|en-gb|google|microsoft/i.test(x.name));
     if(v) u.voice=v;
     u.onstart=()=>setSpeaking(true);
     u.onend=()=>setSpeaking(false);
@@ -58,10 +65,22 @@ export default function AudioPage(){
     const selected=freeVoices.find(v=>v.id===voice);
     if(!selected?.preview_url) return;
     window.speechSynthesis.cancel();
+    setSpeaking(false);
+    if(sampleAudioRef.current){
+      sampleAudioRef.current.pause();
+      sampleAudioRef.current.currentTime=0;
+      sampleAudioRef.current.src=selected.preview_url;
+      sampleAudioRef.current.play().catch(()=>{});
+    }
     setPreviewUrl(selected.preview_url);
-    setSpeaking(true);
+    setSamplePlaying(true);
   }
-  function stop(){window.speechSynthesis.cancel();setSpeaking(false);setPreviewUrl("");}
+
+  function stop(){
+    window.speechSynthesis.cancel();
+    stopSample();
+    setSpeaking(false);
+  }
 
   async function cloneVoice(){
     setError("");setMessage("");
@@ -108,7 +127,7 @@ export default function AudioPage(){
     <Sidebar mobileOpen={mobileNav} onNavigate={()=>setMobileNav(false)}/>
     <section className="content">
       <header>
-        <div><label>CREATE · VOICE</label><h1>AI Audio</h1><span>Generate YouTube narration with free premade voices, or use your own clone when your ElevenLabs plan supports cloning.</span></div>
+        <div><label>CREATE · VOICE</label><h1>AI Audio</h1><span>Generate YouTube narration with available production voices, or use your own clone when your plan supports cloning.</span></div>
         <a className="upgrade" href="/">Dashboard</a>
       </header>
 
@@ -120,14 +139,14 @@ export default function AudioPage(){
           <textarea className="largeInput" value={text} onChange={e=>setText(e.target.value)} placeholder="Paste or write the narration for your YouTube video..."/>
           <div className="controlRow">
             <label>Production voice
-              <select value={voice} onChange={e=>setVoice(e.target.value)}>
+              <select value={voice} onChange={e=>{stop();setVoice(e.target.value)}}>
                 <option value="">Select a voice</option>
                 {freeVoices.map(v=><option key={v.id} value={v.id}>{v.name} · Free</option>)}
                 {clonedVoices.length>0&&<option disabled>— Your clones —</option>}
                 {clonedVoices.map(v=><option key={v.id} value={v.id}>{v.name} · Clone</option>)}
               </select>
             </label>
-            <label>Browser preview
+            <label>Test speed
               <select value={rate} onChange={e=>setRate(e.target.value)}>
                 <option value="0.8">0.8×</option><option value="1">1×</option><option value="1.2">1.2×</option>
               </select>
@@ -135,12 +154,12 @@ export default function AudioPage(){
           </div>
           <div className="actionRow">
             <button className="primary" onClick={speaking?stop:speak} disabled={!text.trim()||!voice}>{speaking?"Stop text test":"▶ Test my text"}</button>
-            <button className="secondary" onClick={previewVoiceSample} disabled={!voice||!freeVoices.some(v=>v.id===voice&&v.preview_url)}>Hear voice sample</button>
+            <button className="secondary" onClick={previewVoiceSample} disabled={!voice||!freeVoices.some(v=>v.id===voice&&v.preview_url)}>{samplePlaying?"Replay voice sample":"Hear voice sample"}</button>
             <button className="secondary" onClick={generateVoiceover} disabled={generateBusy||!text.trim()||!voice}>{generateBusy?"Generating…":"Generate production voiceover"}</button>
-            <small>{text.length} characters · Text test reads exactly the text above with your device speech engine. It does not generate audio or use your daily limit.</small>
+            <small>{text.length} characters · Text test reads only the text in the script box using your device speech engine. It does not play the voice sample, generate audio, or use your daily limit.</small>
           </div>
+          <audio ref={sampleAudioRef} onEnded={()=>setSamplePlaying(false)} style={{display:"none"}}/>
           {audioUrl&&<div style={{marginTop:18}}><label>GENERATED AUDIO</label><audio ref={audioRef} controls src={audioUrl} style={{width:"100%",marginTop:8}}/></div>}
-          {previewUrl&&<audio autoPlay src={previewUrl} onEnded={()=>setSpeaking(false)} style={{display:"none"}}/>}
           <div className="audioPreview" style={{marginTop:24}}>
             <label>SAVED VOICEOVERS</label>
             <h3>Your generated previews</h3>
@@ -154,12 +173,12 @@ export default function AudioPage(){
         </section>
 
         <section className="panel">
-          <label>FREE PREMADE VOICES</label><h2>Generate with free voices</h2>
+          <label>AVAILABLE VOICES</label><h2>Generate with production voices</h2>
           <p>Choose a production voice, test your script without using a generation, then generate only when you are satisfied.</p>
           <div className="voiceGrid">
-            {freeVoices.length===0?<p>Loading available voices…</p>:freeVoices.map(v=><button type="button" className={voice===v.id?"voiceCard selected":"voiceCard"} key={v.id} onClick={()=>setVoice(v.id)}><strong>{v.name}</strong><span>{v.description||"Premade narration voice"}</span></button>)}
+            {freeVoices.length===0?<p>Loading available voices…</p>:freeVoices.map(v=><button type="button" className={voice===v.id?"voiceCard selected":"voiceCard"} key={v.id} onClick={()=>{stop();setVoice(v.id)}}><strong>{v.name}</strong><span>{v.description||"Premade narration voice"}</span></button>)}
           </div>
-          {!providerConfigured&&<small>Voice provider is not configured on the server. Browser preview is still available.</small>}
+          {!providerConfigured&&<small>Voice provider is not configured on the server. Browser text testing is still available.</small>}
           <div className="cloneBox">
           <label>YOUR VOICE CLONE</label><h3>Clone your own voice</h3>
           <p>Upload a clean recording. For best results, use about 1–2 minutes of clear audio from one speaker with minimal background noise.</p>
@@ -171,7 +190,7 @@ export default function AudioPage(){
           <div className="audioPreview">
             <label>MY VOICES</label>
             {clonedVoices.length===0?<p>No cloned voices saved yet. Voice cloning requires an eligible premium voice plan.</p>:
-              <div>{clonedVoices.map(v=><div className="voiceRow" key={v.id}><strong>{v.name}</strong><span>{v.status}</span><button className="secondary" onClick={()=>setVoice(v.id)}>Use voice</button></div>)}</div>}
+              <div>{clonedVoices.map(v=><div className="voiceRow" key={v.id}><strong>{v.name}</strong><span>{v.status}</span><button className="secondary" onClick={()=>{stop();setVoice(v.id)}}>Use voice</button></div>)}</div>}
           </div>
           </div>
         </section>
