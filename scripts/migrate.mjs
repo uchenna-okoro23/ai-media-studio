@@ -77,6 +77,26 @@ try {
 
     CREATE INDEX IF NOT EXISTS idx_voice_clones_user_created
       ON voice_clones(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_projects_user_updated
+      ON projects(user_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS user_brand_kits (
+      user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL DEFAULT '',
+      tagline TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL DEFAULT '#ffffff',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 
   console.log("Database schema ready.");
