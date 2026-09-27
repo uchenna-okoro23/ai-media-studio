@@ -11,9 +11,7 @@ import {
 const DAILY_LIMIT = FREE_DAILY_GENERATIONS;
 
 async function downloadGeneratedMedia(url) {
-  const response = await fetch(url, {
-    cache: "no-store",
-  });
+  const response = await fetch(url, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(
@@ -21,9 +19,7 @@ async function downloadGeneratedMedia(url) {
     );
   }
 
-  const contentType =
-    response.headers.get("content-type") || "image/webp";
-
+  const contentType = response.headers.get("content-type") || "image/webp";
   const arrayBuffer = await response.arrayBuffer();
 
   if (!arrayBuffer.byteLength) {
@@ -59,8 +55,12 @@ export async function POST(request) {
 
   const prompt = String(body.prompt || "").trim();
   const type = String(body.type || "AI Image").trim();
-  const billingMode = String(body.billingMode || "free").trim() === "wallet" ? "wallet" : "free";
-  const providerType = type === "Scene Generator" || type === "Storyboard" ? "AI Image" : type;
+  const billingMode =
+    String(body.billingMode || "free").trim() === "wallet"
+      ? "wallet"
+      : "free";
+  const providerType =
+    type === "Scene Generator" || type === "Storyboard" ? "AI Image" : type;
 
   if (!prompt) {
     return Response.json(
@@ -88,14 +88,11 @@ export async function POST(request) {
 
   let generationId = null;
   let walletTransactionId = null;
+  let completedBillingMode = billingMode;
 
   try {
     await client.query("BEGIN");
 
-    /*
-     * Lock this user's advisory lock so two simultaneous requests
-     * cannot bypass the 10-generation daily limit.
-     */
     await client.query(
       "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
       [`generation-limit:${user.sub}`]
@@ -114,21 +111,7 @@ export async function POST(request) {
       [user.sub]
     );
 
-    const usageCount = usageResult.rows[0]?.count || 0;
-
-    if (usageCount >= DAILY_LIMIT) {
-      await client.query("ROLLBACK");
-
-      return Response.json(
-        {
-          error: "Daily generation limit reached.",
-          limit: DAILY_LIMIT,
-          used: usageCount,
-          remaining: 0,
-        },
-        { status: 429 }
-      );
-    }
+    const usageCount = Number(usageResult.rows[0]?.count || 0);
 
     const generationResult = await client.query(
       `
@@ -139,12 +122,7 @@ export async function POST(request) {
           status
         )
         VALUES ($1, $2, $3, 'processing')
-        RETURNING
-          id,
-          type,
-          prompt,
-          status,
-          created_at
+        RETURNING id, type, prompt, status, created_at
       `,
       [user.sub, type, prompt]
     );
@@ -162,7 +140,8 @@ export async function POST(request) {
       await client.query("ROLLBACK");
       return Response.json(
         {
-          error: "Daily free generation limit reached. Choose Wallet Balance to continue.",
+          error:
+            "Daily free generation limit reached. Choose Wallet Balance to continue.",
           limit: DAILY_LIMIT,
           used: usageCount,
           remaining: 0,
@@ -181,13 +160,16 @@ export async function POST(request) {
           balanceNgn: billing.balanceKobo / 100,
           freeGenerations: Math.max(0, DAILY_LIMIT - usageCount),
           billingMode,
-          message: "Choose Daily Free Limit while free generations remain, or fund your wallet to use Wallet Balance.",
+          message:
+            "Choose Daily Free Limit while free generations remain, or fund your wallet to use Wallet Balance.",
         },
         { status: 402 }
       );
     }
 
+    completedBillingMode = billing.mode;
     walletTransactionId = billing.transactionId || null;
+
     await client.query("COMMIT");
   } catch (error) {
     try {
@@ -210,9 +192,6 @@ export async function POST(request) {
       prompt,
     });
 
-    /*
-     * Provider is not configured.
-     */
     if (result.status === "provider_not_configured") {
       await pool.query(
         `
@@ -234,21 +213,16 @@ export async function POST(request) {
         transactionId: walletTransactionId,
       });
 
-      return Response.json(
-        {
-          id: generationId,
-          type,
-          prompt,
-          status: "provider_not_configured",
-          url: null,
-        },
-        { status: 200 }
-      );
+      return Response.json({
+        id: generationId,
+        type,
+        prompt,
+        status: "provider_not_configured",
+        billingMode: completedBillingMode,
+        url: null,
+      });
     }
 
-    /*
-     * Provider failed to produce a completed result.
-     */
     if (result.status !== "completed" || !result.url) {
       await pool.query(
         `
@@ -280,22 +254,21 @@ export async function POST(request) {
       );
     }
 
-    /*
-     * IMPORTANT:
-     * For AI images, immediately download the provider's temporary
-     * URL and persist the actual binary in PostgreSQL.
-     */
     let mediaData = null;
     let mediaMime = null;
 
-    if (type === "AI Image" || type === "AI Video" || type === "Scene Generator" || type === "Storyboard") {
+    if (
+      type === "AI Image" ||
+      type === "AI Video" ||
+      type === "Scene Generator" ||
+      type === "Storyboard"
+    ) {
       try {
         const downloaded = await downloadGeneratedMedia(result.url);
-
         mediaData = downloaded.data;
         mediaMime = downloaded.mime;
       } catch (error) {
-        console.error("Generated image storage error:", error);
+        console.error("Generated media storage error:", error);
 
         await pool.query(
           `
@@ -328,16 +301,6 @@ export async function POST(request) {
       }
     }
 
-    /*
-     * Save the completed generation.
-     *
-     * Images:
-     *   output_data = permanent binary
-     *   output_mime = image/webp, image/png, etc.
-     *
-     * Other media:
-     *   output_url remains available for the provider result.
-     */
     await pool.query(
       `
         UPDATE generations
@@ -373,21 +336,15 @@ export async function POST(request) {
       [user.sub]
     );
 
-    const used = usageResult.rows[0]?.count || 0;
+    const used = Number(usageResult.rows[0]?.count || 0);
 
     return Response.json({
       id: generationId,
       type,
       prompt,
       status: "completed",
-      billingMode: billing.mode,
-
-      /*
-       * The frontend should use our authenticated media endpoint
-       * instead of the temporary provider URL.
-       */
+      billingMode: completedBillingMode,
       url: `/api/generations/${generationId}/media`,
-
       usage: {
         used,
         limit: DAILY_LIMIT,
@@ -412,10 +369,7 @@ export async function POST(request) {
         [generationId, user.sub]
       );
     } catch (updateError) {
-      console.error(
-        "Failed to update generation status:",
-        updateError
-      );
+      console.error("Failed to update generation status:", updateError);
     }
 
     await refundGenerationCharge({
