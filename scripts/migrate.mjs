@@ -56,12 +56,6 @@ try {
     ALTER TABLE generations
       ADD COLUMN IF NOT EXISTS wallet_transaction_id UUID;
 
-    ALTER TABLE wallet_transactions
-      ADD COLUMN IF NOT EXISTS generation_id UUID REFERENCES generations(id) ON DELETE SET NULL;
-
-    CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_status
-      ON wallet_transactions(user_id, status, created_at DESC);
-
     CREATE TABLE IF NOT EXISTS wallet_transactions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -73,8 +67,14 @@ try {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE wallet_transactions
+      ADD COLUMN IF NOT EXISTS generation_id UUID REFERENCES generations(id) ON DELETE SET NULL;
+
     CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_created
       ON wallet_transactions(user_id, created_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_status
+      ON wallet_transactions(user_id, status, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS voice_clones (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
