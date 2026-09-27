@@ -20,6 +20,7 @@ export default function AudioPage(){
   const [message,setMessage]=useState("");
   const [error,setError]=useState("");
   const [audioUrl,setAudioUrl]=useState("");
+  const [previewUrl,setPreviewUrl]=useState("");
   const audioRef=useRef(null);
 
   useEffect(()=>{
@@ -33,6 +34,13 @@ export default function AudioPage(){
 
   function speak(){
     if(!text.trim()) return;
+    const selected=freeVoices.find(v=>v.id===voice);
+    if(selected?.preview_url){
+      setPreviewUrl(selected.preview_url);
+      setSpeaking(true);
+      setTimeout(()=>setSpeaking(false),2500);
+      return;
+    }
     window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
     u.rate=Number(rate);
@@ -43,7 +51,7 @@ export default function AudioPage(){
     u.onerror=()=>setSpeaking(false);
     window.speechSynthesis.speak(u);
   }
-  function stop(){window.speechSynthesis.cancel();setSpeaking(false);}
+  function stop(){window.speechSynthesis.cancel();setSpeaking(false);setPreviewUrl("");}
 
   async function cloneVoice(){
     setError("");setMessage("");
@@ -117,11 +125,12 @@ export default function AudioPage(){
             </label>
           </div>
           <div className="actionRow">
-            <button className="primary" onClick={speaking?stop:speak} disabled={!text.trim()}>{speaking?"Stop preview":"▶ Browser preview"}</button>
+            <button className="primary" onClick={speaking?stop:speak} disabled={!text.trim()||!voice}>{speaking?"Stop preview":"▶ Voice preview"}</button>
             <button className="secondary" onClick={generateVoiceover} disabled={generateBusy||!text.trim()||!voice}>{generateBusy?"Generating…":"Generate production voiceover"}</button>
             <small>{text.length} characters</small>
           </div>
           {audioUrl&&<div style={{marginTop:18}}><label>GENERATED AUDIO</label><audio ref={audioRef} controls src={audioUrl} style={{width:"100%",marginTop:8}}/></div>}
+          {previewUrl&&<audio autoPlay src={previewUrl} onEnded={()=>setSpeaking(false)} style={{display:"none"}}/>}
         </section>
 
         <section className="panel">
