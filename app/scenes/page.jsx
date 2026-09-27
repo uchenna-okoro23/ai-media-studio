@@ -1,19 +1,4 @@
 "use client";
-
-import { useState } from "react";
+import {useState} from "react";
 import Sidebar from "../components/Sidebar";
-
-export default function ScenesPage() {
-  const [prompt,setPrompt]=useState("");
-  const [mobileNav,setMobileNav]=useState(false);
-
-  return <main className="shell">
-    <button className="mobileMenu" onClick={()=>setMobileNav(true)}>☰</button>
-    {mobileNav&&<div className="navBackdrop" onClick={()=>setMobileNav(false)}/>}
-    <Sidebar mobileOpen={mobileNav} onNavigate={()=>setMobileNav(false)}/>
-    <section className="content">
-      <header><div><label>CREATE</label><h1>Scene Generator</h1><span>Turn a story idea into a visual scene.</span></div><a className="upgrade" href="/">Dashboard</a></header>
-      <div className="panel"><label>SCENE</label><h2>Describe your scene</h2><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Describe the characters, location, mood, lighting and camera..."/><div className="foot"><small>{prompt.length}/2000</small><button>✦ Generate scene</button></div></div>
-    </section>
-  </main>;
-}
+export default function ScenesPage(){const [prompt,setPrompt]=useState("");const [busy,setBusy]=useState(false);const [image,setImage]=useState("");const [notice,setNotice]=useState("");const [mobileNav,setMobileNav]=useState(false);async function generate(){if(!prompt.trim())return;setBusy(true);setNotice("");try{const r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({type:"AI Image",prompt})});const d=await r.json();if(r.ok&&d.id)setImage("/api/generations/"+d.id+"/media");else setNotice(d.error||"Could not generate scene.")}catch{setNotice("Generation service unavailable.")}finally{setBusy(false)}}return <main className="shell"><button className="mobileMenu" onClick={()=>setMobileNav(true)}>☰</button>{mobileNav&&<div className="navBackdrop" onClick={()=>setMobileNav(false)}/>}<Sidebar mobileOpen={mobileNav} onNavigate={()=>setMobileNav(false)}/><section className="content"><header><div><label>PRODUCTION · VISUALS</label><h1>Scene Generator</h1><span>Generate visual shots you can use in your YouTube storyboard.</span></div><a className="upgrade" href="/">Dashboard</a></header><div className="workspace"><section className="panel"><label>SHOT BRIEF</label><h2>Describe the shot</h2><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Subject, action, location, camera angle, lighting and visual style..."/><div className="foot"><small>{prompt.length}/2000</small><button onClick={generate} disabled={busy}>{busy?"Generating...":"Generate scene"}</button></div>{notice&&<div className="notice">{notice}</div>}</section><section className="panel"><label>VISUAL</label><h2>Generated frame</h2><div className="preview">{image?<img className="generatedPreview" src={image} alt="Generated scene"/>:<><b>01</b><strong>Scene preview</strong><small>The generated frame will appear here.</small></>}</div></section></div></section></main>}
