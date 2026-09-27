@@ -60,6 +60,7 @@ export async function POST(request) {
   const prompt = String(body.prompt || "").trim();
   const type = String(body.type || "AI Image").trim();
   const billingMode = String(body.billingMode || "free").trim() === "wallet" ? "wallet" : "free";
+  const providerType = type === "Scene Generator" || type === "Storyboard" ? "AI Image" : type;
 
   if (!prompt) {
     return Response.json(
@@ -205,7 +206,7 @@ export async function POST(request) {
 
   try {
     const result = await generateMedia({
-      type,
+      type: providerType,
       prompt,
     });
 
@@ -287,7 +288,7 @@ export async function POST(request) {
     let mediaData = null;
     let mediaMime = null;
 
-    if (type === "AI Image" || type === "AI Video") {
+    if (type === "AI Image" || type === "AI Video" || type === "Scene Generator" || type === "Storyboard") {
       try {
         const downloaded = await downloadGeneratedMedia(result.url);
 
@@ -379,6 +380,7 @@ export async function POST(request) {
       type,
       prompt,
       status: "completed",
+      billingMode: billing.mode,
 
       /*
        * The frontend should use our authenticated media endpoint
