@@ -38,6 +38,8 @@ export default function AudioPage(){
     if(!text.trim()) return;
     setPreviewUrl("");
     window.speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(text);
+    u.rate=Number(rate);
     const selected=freeVoices.find(v=>v.id===voice);
     const selectedName=selected?.name||clonedVoices.find(v=>v.id===voice)?.name||"";
     const lower=selectedName.toLowerCase();
@@ -45,8 +47,6 @@ export default function AudioPage(){
       const n=x.name.toLowerCase();
       return n===lower || n.includes(lower) || lower.includes(n);
     }) || browserVoices.find(x=>/english|en-us|en-gb|google|microsoft/i.test(x.name));
-    const u=new SpeechSynthesisUtterance(text);
-    u.rate=Number(rate);
     if(v) u.voice=v;
     u.onstart=()=>setSpeaking(true);
     u.onend=()=>setSpeaking(false);
@@ -135,9 +135,9 @@ export default function AudioPage(){
           </div>
           <div className="actionRow">
             <button className="primary" onClick={speaking?stop:speak} disabled={!text.trim()||!voice}>{speaking?"Stop text test":"▶ Test my text"}</button>
-            <button className="secondary" onClick={previewVoiceSample} disabled={!voice||!freeVoices.some(v=>v.id===voice&&v.preview_url)}>Play voice sample</button>
+            <button className="secondary" onClick={previewVoiceSample} disabled={!voice||!freeVoices.some(v=>v.id===voice&&v.preview_url)}>Hear voice sample</button>
             <button className="secondary" onClick={generateVoiceover} disabled={generateBusy||!text.trim()||!voice}>{generateBusy?"Generating…":"Generate production voiceover"}</button>
-            <small>{text.length} characters · Text test uses your device speech engine and does not use a generation.</small>
+            <small>{text.length} characters · Text test reads exactly the text above with your device speech engine. It does not generate audio or use your daily limit.</small>
           </div>
           {audioUrl&&<div style={{marginTop:18}}><label>GENERATED AUDIO</label><audio ref={audioRef} controls src={audioUrl} style={{width:"100%",marginTop:8}}/></div>}
           {previewUrl&&<audio autoPlay src={previewUrl} onEnded={()=>setSpeaking(false)} style={{display:"none"}}/>}
