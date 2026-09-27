@@ -13,7 +13,7 @@ export async function POST(request){
   const pool=db();
   await pool.query("insert into wallet_transactions(user_id,reference,type,amount_kobo,status,provider) values($1,$2,'funding',$3,'pending','paystack')",[user.sub,reference,amountKobo]);
   try{
-    const origin=new URL(request.url).origin;
+    const origin=(process.env.APP_URL||"https://ai-media-studio-edt4.onrender.com").replace(/\/$/,"");
     const response=await fetch("https://api.paystack.co/transaction/initialize",{method:"POST",headers:{"Authorization":"Bearer "+process.env.PAYSTACK_SECRET_KEY,"Content-Type":"application/json"},body:JSON.stringify({email:user.email,amount:String(amountKobo),currency:"NGN",reference,callback_url:origin+"/api/payments/paystack/callback"})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok||!data.status)throw new Error(data.message||"Paystack initialization failed.");
