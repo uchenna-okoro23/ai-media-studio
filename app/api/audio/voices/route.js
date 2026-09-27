@@ -1,7 +1,7 @@
 const FALLBACK_VOICES = [
-  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", description: "Warm, clear female narration" },
-  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi", description: "Strong, confident female narration" },
-  { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh", description: "Deep, steady male narration" },
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", description: "Warm, clear female narration", preview_url: null },
+  { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi", description: "Strong, confident female narration", preview_url: null },
+  { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh", description: "Deep, steady male narration", preview_url: null },
 ];
 
 export async function GET() {
@@ -20,7 +20,7 @@ export async function GET() {
     const data = await response.json();
     const voices = (data.voices || [])
       .filter(v => v.voice_id && (!Array.isArray(v.available_for_tiers) || v.available_for_tiers.length === 0 || v.available_for_tiers.includes("free")))
-      .map(v => ({ id: v.voice_id, name: v.name, description: v.description || "ElevenLabs premade voice" }));
+      .map(v => ({ id: v.voice_id, name: v.name, description: v.description || "Premade narration voice", preview_url: v.preview_url || null }));
     return Response.json({ voices: voices.length ? voices : FALLBACK_VOICES, providerConfigured: true });
   } catch {
     return Response.json({ voices: FALLBACK_VOICES, providerConfigured: true });
