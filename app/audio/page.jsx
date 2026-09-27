@@ -121,7 +121,7 @@ export default function AudioPage(){
 
         <section className="panel">
           <label>VOICE LAB</label><h2>Clone a voice</h2>
-          <p>Upload a clean recording. ElevenLabs recommends about 1–2 minutes of clear audio for Instant Voice Cloning. Keep the recording to one speaker with minimal background noise. citeturn0search1</p>
+          <p>Upload a clean recording. ElevenLabs recommends about 1–2 minutes of clear audio for Instant Voice Cloning. Keep the recording to one speaker with minimal background noise.</p>
           <input className="textInput" value={name} onChange={e=>setName(e.target.value)} placeholder="Voice name"/>
           <input id="voiceFiles" className="textInput" type="file" accept="audio/*" multiple onChange={e=>setFiles(Array.from(e.target.files||[]))}/>
           {files.length>0&&<small>{files.length} sample{files.length===1?"":"s"} selected · {Math.round(files.reduce((n,f)=>n+f.size,0)/1024/1024*10)/10} MB</small>}
