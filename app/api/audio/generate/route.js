@@ -23,14 +23,25 @@ export async function POST(request) {
   if (text.length > MAX_TEXT) return Response.json({ error: `Narration is limited to ${MAX_TEXT.toLocaleString()} characters per generation.` }, { status: 400 });
   if (!voiceId) return Response.json({ error: "Select a voice." }, { status: 400 });
 
-  const voiceResult = await db().query(
-    `SELECT id, name, provider_voice_id
-     FROM voice_clones
-     WHERE id = $1 AND user_id = $2 AND provider = 'elevenlabs' AND status = 'ready'
-     LIMIT 1`,
-    [voiceId, user.sub]
-  );
-  const voice = voiceResult.rows[0];
+  const BUILTIN_VOICES = new Map([
+    ["21m00Tcm4TlvDq8ikWAM", "Rachel"],
+    ["AZnzlk1XvdvUeBnXmlld", "Domi"],
+    ["TxGEqnHWrfWFTfGW9XjX", "Josh"],
+  ]);
+
+  let voice = null;
+  if (BUILTIN_VOICES.has(voiceId)) {
+    voice = { provider_voice_id: voiceId, name: BUILTIN_VOICES.get(voiceId), type: "builtin" };
+  } else {
+    const voiceResult = await db().query(
+      `SELECT id, name, provider_voice_id
+       FROM voice_clones
+       WHERE id = $1 AND user_id = $2 AND provider = 'elevenlabs' AND status = 'ready'
+       LIMIT 1`,
+      [voiceId, user.sub]
+    );
+    voice = voiceResult.rows[0] ? { ...voiceResult.rows[0], type: "clone" } : null;
+  }
   if (!voice) return Response.json({ error: "Voice not found." }, { status: 404 });
 
   const pool = db();
