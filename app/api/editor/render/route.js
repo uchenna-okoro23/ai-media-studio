@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import ffmpegPath from "ffmpeg-static";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -87,7 +88,7 @@ export async function POST(request) {
     inputPaths.forEach((input) => args.push("-i", input));
     args.push("-filter_complex", filterParts.join(";"), "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-movflags", "+faststart", output);
 
-    await run("ffmpeg", args, dir);
+    await run(ffmpegPath, args, dir);
     const data = await readFile(output);
 
     return new Response(data, {
