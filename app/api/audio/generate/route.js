@@ -5,8 +5,6 @@ const DAILY_LIMIT = 10;
 const MAX_TEXT = 12000;
 
 async function resolveVoice(voiceId, userId, apiKey) {
-  // Voice catalog IDs are provider voice IDs, not UUIDs from our database.
-  // Validate them against the provider catalog before using them.
   try {
     const response = await fetch("https://api.elevenlabs.io/v2/voices?page_size=100&voice_type=default", {
       headers: { "xi-api-key": apiKey, Accept: "application/json" },
@@ -17,19 +15,12 @@ async function resolveVoice(voiceId, userId, apiKey) {
       const catalogVoice = Array.isArray(data.voices)
         ? data.voices.find((item) => item.voice_id === voiceId)
         : null;
-      if (catalogVoice) {
-        return {
-          provider_voice_id: catalogVoice.voice_id,
-          name: catalogVoice.name || "Production Voice",
-          type: "catalog",
-        };
-      }
+      if (catalogVoice) return { provider_voice_id: catalogVoice.voice_id, name: catalogVoice.name || "Production Voice", type: "catalog" };
     }
   } catch (error) {
     console.error("Voice catalog lookup error:", error);
   }
 
-  // Otherwise it may be one of the user's saved voice-clone database UUIDs.
   const voiceResult = await db().query(
     `SELECT id, name, provider_voice_id
      FROM voice_clones
@@ -45,7 +36,7 @@ export async function POST(request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) return Response.json({ error: "Audio provider is not configured yet." }, { status: 503 });
+  if (!apiKey) return Response.json({ error: "Audio generation is not available right now." }, { status: 503 });
 
   let body;
   try { body = await request.json(); } catch {
@@ -107,13 +98,12 @@ export async function POST(request) {
     });
 
     if (!upstream.ok) {
-      const errorBody = await upstream.text().catch(() => "");
-      console.error("Audio TTS provider error:", upstream.status, errorBody);
-      throw new Error("The voice provider could not generate the narration.");
+      console.error("Audio generation service error:", upstream.status);
+      throw new Error("Audio generation could not be completed.");
     }
 
     const audio = Buffer.from(await upstream.arrayBuffer());
-    if (!audio.length) throw new Error("The voice provider returned empty audio.");
+    if (!audio.length) throw new Error("Audio generation returned empty audio.");
 
     await pool.query(
       `UPDATE generations
@@ -130,12 +120,7 @@ export async function POST(request) {
     );
     const used = usage.rows[0]?.count || 0;
 
-    return Response.json({
-      id: generationId,
-      status: "completed",
-      url: `/api/generations/${generationId}/media`,
-      usage: { used, limit: DAILY_LIMIT, remaining: Math.max(0, DAILY_LIMIT - used) },
-    });
+    return Response.json({ id: generationId, status: "completed", url: `/api/generations/${generationId}/media`, usage: { used, limit: DAILY_LIMIT, remaining: Math.max(0, DAILY_LIMIT - used) } });
   } catch (error) {
     await pool.query(
       `UPDATE generations SET status = 'failed', output_data = NULL, output_mime = NULL, output_url = NULL
