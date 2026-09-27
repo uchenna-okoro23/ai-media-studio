@@ -1,2 +1,2 @@
 import FeatureWorkspace from "../components/FeatureWorkspace";
-export default function Page(){return <FeatureWorkspace eyebrow="CREATE" title="AI Audio" description="Prepare narration and voice workflows for creative projects." features={["Text to speech","Voice selection","Narration"]}/>
+export default function Page(){return <FeatureWorkspace eyebrow="CREATE" title="AI Audio" description="Prepare narration and voice workflows for creative projects." features={["Text to speech","Voice selection","Narration"]}/>}
