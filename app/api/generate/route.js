@@ -223,7 +223,7 @@ export async function POST(request) {
       });
     }
 
-    if (result.status !== "completed" || !result.url) {
+    if (result.status !== "completed" || (!result.url && !result.data)) {
       await pool.query(
         `
           UPDATE generations
@@ -264,9 +264,14 @@ export async function POST(request) {
       type === "Storyboard"
     ) {
       try {
-        const downloaded = await downloadGeneratedMedia(result.url);
-        mediaData = downloaded.data;
-        mediaMime = downloaded.mime;
+        if (result.data) {
+          mediaData = Buffer.from(result.data);
+          mediaMime = result.mime || "video/mp4";
+        } else {
+          const downloaded = await downloadGeneratedMedia(result.url);
+          mediaData = downloaded.data;
+          mediaMime = downloaded.mime;
+        }
       } catch (error) {
         console.error("Generated media storage error:", error);
 
