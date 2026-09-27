@@ -47,6 +47,21 @@ try {
 
     ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_kobo BIGINT NOT NULL DEFAULT 0;
 
+    ALTER TABLE generations
+      ADD COLUMN IF NOT EXISTS billing_mode TEXT NOT NULL DEFAULT 'free';
+
+    ALTER TABLE generations
+      ADD COLUMN IF NOT EXISTS cost_kobo BIGINT NOT NULL DEFAULT 0;
+
+    ALTER TABLE generations
+      ADD COLUMN IF NOT EXISTS wallet_transaction_id UUID;
+
+    ALTER TABLE wallet_transactions
+      ADD COLUMN IF NOT EXISTS generation_id UUID REFERENCES generations(id) ON DELETE SET NULL;
+
+    CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_status
+      ON wallet_transactions(user_id, status, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS wallet_transactions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
