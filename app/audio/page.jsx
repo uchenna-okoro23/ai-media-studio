@@ -10,6 +10,8 @@ export default function AudioPage(){
   const [mobileNav,setMobileNav]=useState(false);
   const [browserVoices,setBrowserVoices]=useState([]);
   const [clonedVoices,setClonedVoices]=useState([]);
+  const [freeVoices,setFreeVoices]=useState([]);
+  const [providerConfigured,setProviderConfigured]=useState(true);
   const [name,setName]=useState("");
   const [files,setFiles]=useState([]);
   const [consent,setConsent]=useState(false);
@@ -25,6 +27,7 @@ export default function AudioPage(){
     load();
     window.speechSynthesis.onvoiceschanged=load;
     fetch("/api/voices").then(r=>r.ok?r.json():null).then(d=>d&&setClonedVoices(d.voices||[])).catch(()=>{});
+    fetch("/api/audio/voices").then(r=>r.ok?r.json():null).then(d=>{if(d){setFreeVoices(d.voices||[]);setProviderConfigured(d.providerConfigured!==false);}}).catch(()=>{});
     return ()=>{window.speechSynthesis.onvoiceschanged=null;};
   },[]);
 
@@ -68,7 +71,7 @@ export default function AudioPage(){
   async function generateVoiceover(){
     setError("");setMessage("");
     if(!text.trim()){setError("Write or paste your narration first.");return;}
-    if(!voice || !clonedVoices.some(v=>v.id===voice)){setError("Select one of your cloned voices for production audio.");return;}
+    if(!voice || !freeVoices.some(v=>v.id===voice) && !clonedVoices.some(v=>v.id===voice)){setError("Select a production voice first.");return;}
     setGenerateBusy(true);
     try{
       const res=await fetch("/api/audio/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,voiceId:voice})});
@@ -88,7 +91,7 @@ export default function AudioPage(){
     <Sidebar mobileOpen={mobileNav} onNavigate={()=>setMobileNav(false)}/>
     <section className="content">
       <header>
-        <div><label>CREATE · VOICE</label><h1>AI Audio</h1><span>Clone an authorized voice, generate narration, then send it into your video workflow.</span></div>
+        <div><label>CREATE · VOICE</label><h1>AI Audio</h1><span>Generate YouTube narration with free premade voices, or use your own clone when your ElevenLabs plan supports cloning.</span></div>
         <a className="upgrade" href="/">Dashboard</a>
       </header>
 
@@ -113,7 +116,7 @@ export default function AudioPage(){
           </div>
           <div className="actionRow">
             <button className="primary" onClick={speaking?stop:speak} disabled={!text.trim()}>{speaking?"Stop preview":"▶ Browser preview"}</button>
-            <button className="secondary" onClick={generateVoiceover} disabled={generateBusy||!text.trim()||!selectedCloned}>{generateBusy?"Generating…":"Generate production voiceover"}</button>
+            <button className="secondary" onClick={generateVoiceover} disabled={generateBusy||!text.trim()||!voice}>{generateBusy?"Generating…":"Generate production voiceover"}</button>
             <small>{text.length} characters</small>
           </div>
           {audioUrl&&<div style={{marginTop:18}}><label>GENERATED AUDIO</label><audio ref={audioRef} controls src={audioUrl} style={{width:"100%",marginTop:8}}/></div>}
@@ -126,10 +129,10 @@ export default function AudioPage(){
           <input id="voiceFiles" className="textInput" type="file" accept="audio/*" multiple onChange={e=>setFiles(Array.from(e.target.files||[]))}/>
           {files.length>0&&<small>{files.length} sample{files.length===1?"":"s"} selected · {Math.round(files.reduce((n,f)=>n+f.size,0)/1024/1024*10)/10} MB</small>}
           <label className="checkRow"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I own this voice or have permission to use and clone it.</span></label>
-          <button className="primary" onClick={cloneVoice} disabled={cloneBusy}>{cloneBusy?"Cloning voice…":"Clone voice"}</button>
+          <button className="primary" onClick={cloneVoice} disabled={cloneBusy}>{cloneBusy?"Cloning voice…":"Clone my voice"}</button>
           <div className="audioPreview">
             <label>MY VOICES</label>
-            {clonedVoices.length===0?<p>No cloned voices yet. Create one above to use production narration.</p>:
+            {clonedVoices.length===0?<p>No cloned voices saved yet.</p>:
               <div>{clonedVoices.map(v=><div className="voiceRow" key={v.id}><strong>{v.name}</strong><span>{v.status}</span><button className="secondary" onClick={()=>setVoice(v.id)}>Use voice</button></div>)}</div>}
           </div>
         </section>
