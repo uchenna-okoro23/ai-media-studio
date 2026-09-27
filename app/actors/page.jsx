@@ -1,2 +1,2 @@
 import FeatureWorkspace from "../components/FeatureWorkspace";
-export default function Page(){return <FeatureWorkspace eyebrow="CREATE" title="AI Actors" description="Create UGC-style video workflows with expressive synthetic actors." features={["Synthetic actors","Voice pairing","Product scenes"]}/>
+export default function Page(){return <FeatureWorkspace eyebrow="CREATE" title="AI Actors" description="Create UGC-style video workflows with expressive synthetic actors." features={["Synthetic actors","Voice pairing","Product scenes"]}/>}
