@@ -6,7 +6,7 @@ export async function GET() {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const result = await db().query(
-    `SELECT id, name, provider, provider_voice_id, status, created_at
+    `SELECT id, name, status, created_at
      FROM voice_clones
      WHERE user_id = $1
      ORDER BY created_at DESC`,
