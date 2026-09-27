@@ -47,6 +47,12 @@ export default function Editor() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (renderedUrl) URL.revokeObjectURL(renderedUrl);
+    };
+  }, [renderedUrl]);
+
+  useEffect(() => {
     if (!selected || !videoRef.current) return;
     videoRef.current.src = selected.url;
     videoRef.current.currentTime = selected.start || 0;
@@ -176,10 +182,17 @@ export default function Editor() {
         body: form,
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Export failed.");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Export failed.");
+      }
 
-      setRenderedUrl(data.url);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setRenderedUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return url;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Export failed.");
     } finally {
