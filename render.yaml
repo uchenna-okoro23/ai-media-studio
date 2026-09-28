@@ -19,10 +19,12 @@ services:
         sync: false
       - key: HF_VIDEO_MODEL
         value: Wan-AI/Wan2.2-TI2V-5B
+      - key: HF_VIDEO_PROVIDER
+        value: auto
       - key: HF_VIDEO_FALLBACK_MODEL
-        value: Wan-AI/Wan2.2-TI2V-5B
+        value: tencent/HunyuanVideo
       - key: HF_VIDEO_FALLBACK_PROVIDER
-        value: replicate
+        value: auto
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: PAYSTACK_SECRET_KEY
