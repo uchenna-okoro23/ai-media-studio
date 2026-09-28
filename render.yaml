@@ -25,6 +25,26 @@ services:
         value: tencent/HunyuanVideo
       - key: HF_VIDEO_FALLBACK_PROVIDER
         value: auto
+      - key: VIDRUSH_API_KEY
+        sync: false
+      - key: VIDRUSH_API_BASE
+        value: https://vidrush-ai.com/api/v1
+      - key: VIDEO_PROVIDER
+        value: vidrush
+      - key: VIDEO_PROVIDER_FALLBACK
+        value: replicate
+      - key: VIDRUSH_VIDEO_MODEL
+        value: vidrush-v1
+      - key: VIDRUSH_VIDEO_DURATION
+        value: 8s
+      - key: VIDRUSH_VIDEO_RESOLUTION
+        value: 720p
+      - key: VIDRUSH_VIDEO_ASPECT_RATIO
+        value: 16:9
+      - key: VIDRUSH_POLL_SECONDS
+        value: "5"
+      - key: VIDRUSH_MAX_POLLS
+        value: "120"
       - key: ELEVENLABS_API_KEY
         sync: false
       - key: PAYSTACK_SECRET_KEY
