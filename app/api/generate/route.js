@@ -30,6 +30,11 @@ export async function POST(request) {
   const type = String(body.type || "AI Image").trim();
   const billingMode = String(body.billingMode || "free").trim() === "wallet" ? "wallet" : "free";
   const providerType = type === "Scene Generator" || type === "Storyboard" ? "AI Image" : type;
+  const imageUrl = body.imageUrl ? String(body.imageUrl).trim() : undefined;
+  const model = body.model ? String(body.model).trim() : undefined;
+  const duration = body.duration ? String(body.duration).trim() : undefined;
+  const resolution = body.resolution ? String(body.resolution).trim() : undefined;
+  const aspectRatio = body.aspectRatio ? String(body.aspectRatio).trim() : undefined;
   if (!prompt) return Response.json({ error: "Prompt is required." }, { status: 400 });
   const supportedTypes = ["AI Image", "AI Video", "Scene Generator", "Storyboard"];
   if (!supportedTypes.includes(type)) return Response.json({ error: "Unsupported generation type." }, { status: 400 });
@@ -63,7 +68,7 @@ export async function POST(request) {
   } finally { client.release(); }
 
   try {
-    const result = await generateMedia({ type:providerType, prompt });
+    const result = await generateMedia({ type:providerType, prompt, imageUrl, model, duration, resolution, aspectRatio });
     if (result.status === "provider_not_configured") {
       await pool.query("UPDATE generations SET status='failed',output_url=NULL,output_data=NULL,output_mime=NULL WHERE id=$1 AND user_id=$2", [generationId,user.sub]);
       await refundGenerationCharge({ userId:user.sub,generationId,transactionId:walletTransactionId });
@@ -94,11 +99,11 @@ export async function POST(request) {
     await completeGenerationCharge(walletTransactionId);
     const usageResult = await pool.query("SELECT COUNT(*)::int AS count FROM generations WHERE user_id=$1 AND billing_mode='free' AND status IN ('processing','completed') AND created_at>=CURRENT_DATE AND created_at<CURRENT_DATE+INTERVAL '1 day'", [user.sub]);
     const used = Number(usageResult.rows[0]?.count || 0);
-    return Response.json({ id:generationId,type,prompt,status:"completed",billingMode:completedBillingMode,url:"/api/generations/"+generationId+"/media",usage:{used,limit:DAILY_LIMIT,remaining:Math.max(0,DAILY_LIMIT-used)} });
+    return Response.json({ id:generationId,type,prompt,status:"completed",billingMode:completedBillingMode,provider:result.provider||null,costCredits:result.costCredits??null,url:"/api/generations/"+generationId+"/media",usage:{used,limit:DAILY_LIMIT,remaining:Math.max(0,DAILY_LIMIT-used)} });
   } catch (error) {
     console.error("Generation error:", error);
     try { await pool.query("UPDATE generations SET status='failed',output_url=NULL,output_data=NULL,output_mime=NULL WHERE id=$1 AND user_id=$2", [generationId,user.sub]); } catch (updateError) { console.error("Failed to update generation status:",updateError); }
     await refundGenerationCharge({ userId:user.sub,generationId,transactionId:walletTransactionId }).catch((refundError)=>console.error("Wallet refund error:",refundError));
-    return Response.json({ error:type==="AI Video" ? "Video generation failed. Please try again." : "Generation failed. Please try again.", id:generationId }, { status:502 });
+    return Response.json({ error:type==="AI Video" ? "Video generation failed. "+(error?.message||"Please try again.") : "Generation failed. Please try again.", id:generationId }, { status:502 });
   }
 }
