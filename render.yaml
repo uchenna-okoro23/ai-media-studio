@@ -15,22 +15,12 @@ services:
         generateValue: true
       - key: REPLICATE_API_TOKEN
         sync: false
-      - key: HF_TOKEN
-        sync: false
-      - key: HF_VIDEO_MODEL
-        value: Wan-AI/Wan2.2-TI2V-5B
-      - key: HF_VIDEO_PROVIDER
-        value: auto
-      - key: HF_VIDEO_FALLBACK_MODEL
-        value: tencent/HunyuanVideo
-      - key: HF_VIDEO_FALLBACK_PROVIDER
-        value: auto
       - key: VIDRUSH_API_KEY
         sync: false
       - key: VIDRUSH_API_BASE
         value: https://vidrush-ai.com/api/v1
       - key: VIDEO_PROVIDER
-        value: vidrush
+        value: auto
       - key: VIDEO_PROVIDER_FALLBACK
         value: replicate
       - key: VIDRUSH_VIDEO_MODEL
@@ -59,6 +49,14 @@ services:
         value: https://ai-media-studio-edt4.onrender.com
       - key: VIDEO_ASPECT_RATIO
         value: 16:9
+      - key: VIDEO_FRAMES
+        value: "81"
+      - key: VIDEO_RESOLUTION
+        value: 480p
+      - key: VIDEO_FPS
+        value: "16"
+      - key: VIDEO_SAMPLE_SHIFT
+        value: "12"
       - key: VIDEO_SECONDS
         value: "5"
 
